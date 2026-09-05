@@ -46,12 +46,75 @@
     gap: 2px;
   }
   #menubar .menu-item {
+    position: relative;
     padding: 2px 9px;
     cursor:default;
     border-radius:2px;
     color: var(--text);
   }
-  #menubar .menu-item:hover { background: var(--hover); }
+  #menubar .menu-item:hover,
+  #menubar .menu-item.open { background: var(--hover); }
+
+  /* ---------- Menu dropdown (visual apenas — sem função atribuída) ---------- */
+  .menu-dropdown {
+    display:none;
+    position:absolute;
+    top:100%; left:0;
+    min-width:230px;
+    background:#fff;
+    border:1px solid var(--panel-border);
+    box-shadow:2px 3px 6px rgba(0,0,0,0.18);
+    padding:3px 0;
+    z-index:500;
+    font-size:12.5px;
+  }
+  #menubar .menu-item.open .menu-dropdown { display:block; }
+  .menu-dropdown .dd-item {
+    display:flex; align-items:center;
+    padding:4px 10px 4px 30px;
+    position:relative;
+    white-space:nowrap;
+    color: var(--text);
+    cursor:default;
+  }
+  .menu-dropdown .dd-item:hover { background: var(--hover); }
+  .menu-dropdown .dd-item .dd-icon {
+    position:absolute; left:6px; top:50%; transform:translateY(-50%);
+    width:16px; height:16px;
+    background-repeat:no-repeat; background-position:center; background-size:16px 16px;
+  }
+  .menu-dropdown .dd-item .dd-label { flex:1; }
+  .menu-dropdown .dd-item .dd-shortcut { color: var(--text-dim); margin-left:24px; font-size:11.5px; }
+  .menu-dropdown .dd-item .dd-arrow { margin-left:24px; color:var(--text-dim); }
+  .menu-dropdown .dd-sep { height:1px; background:var(--divider); margin:4px 0; }
+  .menu-dropdown .dd-item.disabled { color:#a0a0a0; cursor:default; }
+  .menu-dropdown .dd-item.disabled:hover { background:transparent; }
+
+  /* Submenu (segundo nível, ex: Salvar Como... ▸) */
+  .dd-submenu { position:relative; }
+  .dd-submenu > .menu-dropdown {
+    top:-4px; left:100%;
+  }
+  .dd-submenu:hover > .menu-dropdown { display:block; }
+
+  /* ---------- Menu de contexto de Camada (botão direito em uma camada) ---------- */
+  #layer-context-menu {
+    display:none;
+    position:fixed;
+    min-width:255px;
+    background:#fff;
+    border:1px solid var(--panel-border);
+    box-shadow:2px 3px 6px rgba(0,0,0,0.18);
+    padding:3px 0;
+    z-index:2000;
+    font-size:12.5px;
+  }
+  #layer-context-menu.show { display:block; }
+  #layer-context-menu .dd-item .dd-icon {
+    position:absolute; left:6px; top:50%; transform:translateY(-50%);
+    width:16px; height:16px;
+    background-repeat:no-repeat; background-position:center; background-size:16px 16px;
+  }
 
   /* ---------- Toolbar ---------- */
   #toolbar {
@@ -65,13 +128,13 @@
   }
   .tool-btn {
     display:flex; align-items:center; justify-content:center;
-    width: 27px; height: 27px;
+    width: 34px; height: 34px;
     border: 1px solid transparent;
     border-radius: 3px;
     background-color: transparent;
     background-repeat: no-repeat;
     background-position: center;
-    background-size: 18px 18px;
+    background-size: 25px 25px;
     cursor: pointer;
     font-size: 15px;
     color: var(--text);
@@ -123,6 +186,21 @@
     background-repeat: repeat;
     background-position: 0 1px;
     opacity:.55;
+    cursor: grab;
+  }
+  .drag-handle:hover { opacity:.9; }
+  .drag-handle:active { cursor: grabbing; }
+
+  /* ---------- Drag-and-drop de grupos de ferramentas ---------- */
+  .toolbar-group.tg-dragging { opacity:.35; }
+  .toolbar-group.tg-drop-before {
+    box-shadow: inset 3px 0 0 0 var(--accent);
+  }
+  .toolbar-group.tg-drop-after {
+    box-shadow: inset -3px 0 0 0 var(--accent);
+  }
+  #toolbar.tg-drop-target-empty, #toolbar2.tg-drop-target-empty {
+    box-shadow: inset 0 0 0 2px var(--accent);
   }
 
   /* pequena seta de dropdown ao lado de uma ferramenta com variantes */
@@ -139,10 +217,10 @@
 
   #toolbar2 {
     display:flex; align-items:center; flex-wrap:wrap;
-    background: #f0ede4;
+    background: var(--toolbar-bg);
     border-bottom: 1px solid var(--panel-border);
     padding: 3px 6px;
-    min-height: 30px;
+    min-height: 34px;
     flex-shrink:0;
     gap: 2px 0;
     row-gap: 2px;
@@ -217,6 +295,19 @@
     color: var(--text-dim);
     letter-spacing:0.2px;
   }
+  /* ---------- Barra de ícones do painel de Camadas ---------- */
+  #layers-toolbar {
+    display:flex; align-items:center;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 2px 4px;
+    gap: 1px;
+    flex-shrink:0;
+  }
+  #layers-toolbar .tool-btn {
+    width: 22px; height: 22px;
+    background-size: 15px 15px;
+  }
   #layer-list {
     flex:1; overflow-y:auto;
     padding: 4px 2px;
@@ -250,10 +341,47 @@
     background:#fff;
     display:flex; flex-direction:column;
     flex-shrink:0;
+    position: relative;
+    min-height: 60px;
   }
   #attr-panel.collapsed { height: 26px; }
   #attr-panel.collapsed #attr-table-wrap { display:none; }
   #attr-panel.collapsed #attr-toolbar { display:none; }
+  #attr-panel.collapsed #attr-resize-handle { display:none; }
+
+  /* ---------- Encaixe (docking) da tabela de atributos ---------- */
+  /* Docked embaixo (padrão): #attr-panel é irmão de #body, largura total, altura ajustável */
+  /* Docked à direita: #attr-panel entra dentro de #body, ao lado do mapa, largura ajustável */
+  #body.attr-dock-right { flex-direction: row; }
+  #body.attr-dock-right #attr-panel {
+    height: auto !important;
+    width: 340px;
+    border-top: none;
+    border-left: 1px solid var(--panel-border);
+    flex-shrink: 0;
+  }
+  #body.attr-dock-right #attr-panel.collapsed { width: 26px; }
+  #body.attr-dock-right #attr-panel.collapsed #attr-header { writing-mode: vertical-rl; height:100%; justify-content:flex-start; padding:8px 4px; }
+  #body.attr-dock-right #attr-panel.collapsed .title { writing-mode: vertical-rl; }
+  #body.attr-dock-right #attr-resize-handle {
+    left: -3px; top: 0; right: auto; bottom: auto;
+    width: 6px; height: 100%;
+    cursor: ew-resize;
+  }
+  #body.attr-dock-right #attr-resize-handle:hover,
+  #body.attr-dock-right #attr-resize-handle.resizing { background: var(--accent); opacity:.45; }
+
+  #attr-resize-handle {
+    position: absolute;
+    left: 0; top: -3px;
+    width: 100%; height: 6px;
+    cursor: ns-resize;
+    z-index: 20;
+  }
+  #attr-resize-handle:hover, #attr-resize-handle.resizing {
+    background: var(--accent); opacity:.35;
+  }
+
   #attr-header {
     display:flex; align-items:center; justify-content:space-between;
     background: var(--toolbar-bg);
@@ -265,6 +393,12 @@
   #attr-header span.title { font-weight:600; font-size:11.5px; color:var(--text-dim); }
   #attr-header-right { display:flex; align-items:center; gap:10px; }
   #attr-toggle { font-size:11px; color:var(--text-dim); }
+  #attr-dock-toggle {
+    font-size:11px; color:var(--text-dim); cursor:pointer;
+    border:1px solid var(--panel-border); border-radius:3px;
+    padding:1px 5px; background:#fff;
+  }
+  #attr-dock-toggle:hover { background:var(--hover); }
   #attr-toolbar {
     display:flex; align-items:center; gap:4px;
     padding: 3px 6px; background:#f5f5f5; border-bottom:1px solid var(--panel-border);
@@ -377,11 +511,143 @@
 <div id="app">
 
   <div id="menubar">
-    <div class="menu-item">Arquivo</div>
+    <div class="menu-item">
+      Projeto
+      <div class="menu-dropdown">
+        <div class="dd-item"><span class="dd-label">Novo</span><span class="dd-shortcut">Ctrl+N</span></div>
+        <div class="dd-item"><span class="dd-label">Novo a partir do modelo</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Abrir...</span><span class="dd-shortcut">Ctrl+O</span></div>
+        <div class="dd-item"><span class="dd-label">Abrir do(a)</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Abrir Recente</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Fechar</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Salvar</span><span class="dd-shortcut">Ctrl+S</span></div>
+        <div class="dd-item"><span class="dd-label">Salvar Como...</span><span class="dd-shortcut">Ctrl+Shift+S</span></div>
+        <div class="dd-item"><span class="dd-label">Salvar para</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Reverter...</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Propriedades...</span><span class="dd-shortcut">Ctrl+Shift+P</span></div>
+        <div class="dd-item"><span class="dd-label">Opções de aderência...</span></div>
+        <div class="dd-item"><span class="dd-label">Importar/Exportar</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Novo layout de Impressão...</span><span class="dd-shortcut">Ctrl+P</span></div>
+        <div class="dd-item"><span class="dd-label">Novo Relatório...</span></div>
+        <div class="dd-item"><span class="dd-label">Gerenciador de Layout...</span></div>
+        <div class="dd-item"><span class="dd-label">Layouts</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Modelos</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Sair do QGIS</span><span class="dd-shortcut">Ctrl+Q</span></div>
+      </div>
+    </div>
     <div class="menu-item">Editar</div>
-    <div class="menu-item">Exibir</div>
+    <div class="menu-item">
+      Exibir
+      <div class="menu-dropdown">
+        <div class="dd-item"><span class="dd-label">Nova visualização de mapa</span><span class="dd-shortcut">Ctrl+M</span></div>
+        <div class="dd-item"><span class="dd-label">Visualizações de Mapa 3D</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Deslocar Mapa</span></div>
+        <div class="dd-item"><span class="dd-label">Mover Mapa para Seleção</span></div>
+        <div class="dd-item"><span class="dd-label">Aproximar</span><span class="dd-shortcut">Ctrl+Alt++</span></div>
+        <div class="dd-item"><span class="dd-label">Afastar</span><span class="dd-shortcut">Ctrl+Alt+-</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Identificar feições</span><span class="dd-shortcut">Ctrl+Shift+I</span></div>
+        <div class="dd-item"><span class="dd-label">Medir</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Resumo estatístico</span><span class="dd-arrow">Σ</span></div>
+        <div class="dd-item"><span class="dd-label">Perfil de Elevação</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Ver tudo</span><span class="dd-shortcut">Ctrl+Shift+F</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Aproximar à Seleção</span><span class="dd-shortcut">Ctrl+J</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Aproximar à(s) Camada(s)</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Zoom para Resolução Nativa (100%)</span></div>
+        <div class="dd-item"><span class="dd-label">Última visualização</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Próxima visualização</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Decorações</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Modo de pré-visualização</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Mostrar Dicas do Mapa</span></div>
+        <div class="dd-item"><span class="dd-label">Novo Favorito Espacial...</span><span class="dd-shortcut">Ctrl+B</span></div>
+        <div class="dd-item"><span class="dd-label">Mostrar Favoritos Espaciais</span><span class="dd-shortcut">Ctrl+Shift+B</span></div>
+        <div class="dd-item"><span class="dd-label">Mostrar Gerenciador de Favoritos Espaciais</span></div>
+        <div class="dd-item"><span class="dd-label">Atualizar</span><span class="dd-shortcut">F5</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Visibilidade da Camada</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Painéis</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Barra de Ferramentas</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item"><span class="dd-label">Mudar para o Modo de Tela Cheia</span><span class="dd-shortcut">F11</span></div>
+        <div class="dd-item"><span class="dd-label">Mudar para Visibilidade do Painel</span></div>
+        <div class="dd-item"><span class="dd-label">Alternar apenas o mapa</span><span class="dd-shortcut">Ctrl+Shift+Tab</span></div>
+      </div>
+    </div>
     <div class="menu-item">Camada</div>
     <div class="menu-item">Configurações</div>
+    <div class="menu-item">
+      Complementos
+      <div class="menu-dropdown">
+        <div class="dd-item"><span class="dd-label">Gerenciar e Instalar Complementos...</span></div>
+        <div class="dd-item"><span class="dd-label">Terminal Python</span><span class="dd-shortcut">Ctrl+Alt+P</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Globe Builder</span><span class="dd-arrow">▸</span></div>
+      </div>
+    </div>
+    <div class="menu-item">
+      Vetor
+      <div class="menu-dropdown">
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Geoprocessamento</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Geometrias</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Analisar</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Investigar</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Gerenciar dados</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+      </div>
+    </div>
+    <div class="menu-item">
+      Raster
+      <div class="menu-dropdown">
+        <div class="dd-item"><span class="dd-label">Calculadora Raster...</span></div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Análise</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Projeções</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Miscelânea</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Extrair</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Converter</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown"></div>
+        </div>
+        <div class="dd-sep"></div>
+        <div class="dd-item"><span class="dd-label">Alinhar rasters...</span></div>
+      </div>
+    </div>
+    <div class="menu-item">Banco de dados</div>
+    <div class="menu-item">Web</div>
+    <div class="menu-item">Malha</div>
+    <div class="menu-item">HCMGIS</div>
+    <div class="menu-item">Processamento</div>
     <div class="menu-item">Ajuda</div>
   </div>
 
@@ -397,6 +663,7 @@
     <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Aproximar para resolução nativa (100%)" style="background-image:url('icons/mActionZoomActual.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="project" style="display:flex;align-items:center;">
     <button class="tool-btn" id="btn-import" title="Importar shapefile (.zip com .shp/.shx/.dbf/.prj)" style="background-image:url('icons/mActionAddOgrLayer.svg')"></button>
     <input type="file" id="file-input" accept=".zip" />
@@ -418,6 +685,7 @@
     <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="attributes" style="display:flex;align-items:center;">
     <button class="tool-btn not-implemented" id="btn-identify" title="Identificar feições" style="background-image:url('icons/mActionIdentify.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-select-expr" title="Selecionar feições por expressão" style="background-image:url('icons/mIconExpressionSelect.svg')"></button>
@@ -447,6 +715,7 @@
     <button class="tool-btn not-implemented" id="btn-add-vtile" title="Adicionar camada de blocos vetoriais" style="background-image:url('icons/mActionAddVectorTileLayer.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="digitizing" style="display:flex;align-items:center;">
     <button class="tool-btn" id="btn-toggle-edit" disabled title="Alternar modo de edição de atributos" style="background-image:url('icons/mActionToggleEditing.svg')"></button>
     <button class="tool-btn" id="btn-save-edits-tb" disabled title="Salvar edições na camada" style="background-image:url('icons/mActionSaveEdits.svg')"></button>
@@ -461,12 +730,13 @@
     <button class="tool-btn not-implemented" id="btn-delete-selected" title="Excluir feições selecionadas" style="background-image:url('icons/mActionDeleteSelectedFeatures.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="advdigitizing" style="display:flex;align-items:center;">
-    <button class="tool-label-btn has-icon" id="btn-buffer" disabled title="Criar zona de buffer ao redor da feição selecionada" style="background-image:url('icons/mActionReshape.svg')">Buffer</button>
-    <button class="tool-label-btn has-icon" id="btn-intersect" disabled title="Interseção entre duas camadas" style="background-image:url('icons/mActionMergeFeatures.svg')">Interseção</button>
-    <button class="tool-label-btn has-icon" id="btn-union" disabled title="Unir todas as feições de duas camadas em uma só" style="background-image:url('icons/mActionMergeFeatureAttributes.svg')">Unir camadas</button>
-    <button class="tool-label-btn has-icon" id="btn-clip" disabled title="Recortar uma camada usando outra como máscara" style="background-image:url('icons/mActionSplitFeatures.svg')">Recortar</button>
-    <button class="tool-label-btn has-icon" id="btn-split" disabled title="Dividir uma feição em duas, desenhando uma linha de corte" style="background-image:url('icons/mActionSplitParts.svg')">Dividir feição</button>
+    <button class="tool-label-btn has-icon" id="btn-buffer" disabled title="Criar zona de buffer ao redor da feição selecionada" style="background-image:url('icons/mActionReshape.svg')"></button>
+    <button class="tool-label-btn has-icon" id="btn-intersect" disabled title="Interseção entre duas camadas" style="background-image:url('icons/mActionMergeFeatures.svg')"></button>
+    <button class="tool-label-btn has-icon" id="btn-union" disabled title="Unir todas as feições de duas camadas em uma só" style="background-image:url('icons/mActionMergeFeatureAttributes.svg')"></button>
+    <button class="tool-label-btn has-icon" id="btn-clip" disabled title="Recortar uma camada usando outra como máscara" style="background-image:url('icons/mActionSplitFeatures.svg')"></button>
+    <button class="tool-label-btn has-icon" id="btn-split" disabled title="Dividir uma feição em duas, desenhando uma linha de corte" style="background-image:url('icons/mActionSplitParts.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="managelayers2" style="display:flex;align-items:center;">
@@ -478,6 +748,7 @@
     <button class="tool-btn not-implemented" id="btn-add-pointcloud" title="Adicionar camada de nuvem de pontos" style="background-image:url('icons/mActionAddPointCloudLayer.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="createlayer" style="display:flex;align-items:center;">
     <button class="tool-btn not-implemented" id="btn-new-postgis" title="Nova camada PostGIS" style="background-image:url('icons/mActionNewGeoPackageLayer.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
@@ -486,6 +757,7 @@
     <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="labels" style="display:flex;align-items:center;">
     <button class="tool-btn not-implemented" id="btn-toggle-labels" title="Ativar/desativar rotulagem e diagramas" style="background-image:url('icons/mActionLabeling.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-diagrams" title="Diagramas" style="background-image:url('icons/diagram.svg')"></button>
@@ -498,6 +770,7 @@
     <button class="tool-btn not-implemented" id="btn-change-label" title="Alterar propriedades do rótulo" style="background-image:url('icons/mActionChangeLabelProperties.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="advdigitizing2" style="display:flex;align-items:center;">
     <button class="tool-btn not-implemented" id="btn-simplify" title="Simplificar feição" style="background-image:url('icons/mActionSimplify.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-vertex-tool" title="Ferramenta de vértices" style="background-image:url('icons/mActionVertexTool.svg')"></button>
@@ -520,6 +793,7 @@
     <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="shapedigitizing" style="display:flex;align-items:center;">
     <button class="tool-btn not-implemented" id="btn-shape-rect" title="Retângulo" style="background-image:url('icons/mActionAddBasicRectangle.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-shape-circle" title="Círculo" style="background-image:url('icons/mActionAddBasicCircle.svg')"></button>
@@ -527,6 +801,7 @@
     <button class="tool-btn not-implemented" id="btn-shape-regular" title="Polígono regular" style="background-image:url('icons/mActionRegularPolygonCenterPoint.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="dbpython" style="display:flex;align-items:center;">
     <button class="tool-btn not-implemented" id="btn-db-toolbar" title="Barra de ferramentas de banco de dados" style="background-image:url('icons/dbmanager.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-python-console" title="Console Python" style="background-image:url('icons/mIconPythonFile.svg')"></button>
@@ -536,18 +811,27 @@
     <button class="tool-btn not-implemented" id="btn-north-arrow" title="Seta norte" style="background-image:url('icons/mActionAddArrow.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="gps2" style="display:flex;align-items:center;">
     <button class="tool-btn not-implemented" id="btn-gps-track" title="Ativar rastreamento GPS" style="background-image:url('icons/mActionAddGpsLayer.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-gps-panel" title="Painel GPS" style="background-image:url('icons/mIconGps.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
-    <span id="autosave-indicator">💾 Salvo automaticamente</span>
-    <button class="tool-label-btn" id="btn-clear-autosave" title="Apagar dados salvos automaticamente neste navegador">🗑 Limpar dados salvos</button>
   </div>
 
   <div id="body">
     <div id="layers-panel">
       <div class="panel-header">Camadas</div>
+      <div id="layers-toolbar">
+        <button class="tool-btn" title="Abrir Estilo da Camada" style="background-image:url('icons/mActionStyleManager.svg')"></button>
+        <button class="tool-btn" title="Copiar Estilo" style="background-image:url('icons/mActionEditCopy.svg')"></button>
+        <button class="tool-btn" title="Mostrar/Ocultar Camadas" style="background-image:url('icons/mActionShowAllLayers.svg')"></button>
+        <button class="tool-btn" title="Filtrar Legenda por Expressão" style="background-image:url('icons/mActionFilter2.svg')"></button>
+        <button class="tool-btn" title="Filtrar Legenda por Expressão" style="background-image:url('icons/mIconExpression.svg')"></button>
+        <button class="tool-btn" title="Expandir Tudo" style="background-image:url('icons/mActionExpandTree.svg')"></button>
+        <button class="tool-btn" title="Recolher Tudo" style="background-image:url('icons/mActionCollapseTree.svg')"></button>
+        <button class="tool-btn" title="Remover Camada/Grupo" style="background-image:url('icons/mActionRemoveLayer.svg')"></button>
+      </div>
       <div id="layer-list">
         <div class="layers-empty">Nenhuma camada carregada.<br>Use "Importar SHP" para começar.</div>
       </div>
@@ -557,6 +841,47 @@
       <div id="map"></div>
       <div id="measure-result"></div>
     </div>
+  </div>
+
+  <!-- Menu de contexto: botão direito em uma camada no painel Camadas (apenas visual, sem função atribuída) -->
+  <div id="layer-context-menu" class="menu-dropdown">
+    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionZoomToLayer.svg')"></span><span class="dd-label">Aproximar para camada(s)</span></div>
+    <div class="dd-item disabled"><span class="dd-icon" style="background-image:url('icons/mActionZoomToSelected.svg')"></span><span class="dd-label">Aproximar à Seleção</span></div>
+    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionInOverview.svg')"></span><span class="dd-label">Mostrar na vista geral</span></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Mostrar contagem dos elementos</span></div>
+    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionLabeling.svg')"></span><span class="dd-label">Mostrar etiquetas</span></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Copiar camada</span></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Renomear Camada</span></div>
+    <div class="dd-sep"></div>
+    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionDuplicateLayer.svg')"></span><span class="dd-label">Duplicar Camada</span></div>
+    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionRemoveLayer.svg')"></span><span class="dd-label">Remover Camada...</span></div>
+    <div class="dd-sep"></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Mover ao Topo</span></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Mover para inferior</span></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Checar Todos seus Parentescos</span></div>
+    <div class="dd-sep"></div>
+    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionOpenTable.svg')"></span><span class="dd-label">Abrir tabela de atributos</span></div>
+    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionToggleEditing.svg')"></span><span class="dd-label">Alternar Edição</span></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Filtrar...</span></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Modificar a origem da fonte de dados</span></div>
+    <div class="dd-sep"></div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Visibilidade baseada na escala</span></div>
+    <div class="dd-item dd-submenu">
+      <span class="dd-label" style="padding-left:0">SRC da camada</span><span class="dd-arrow">▸</span>
+      <div class="menu-dropdown"></div>
+    </div>
+    <div class="dd-sep"></div>
+    <div class="dd-item dd-submenu">
+      <span class="dd-label" style="padding-left:0">Exportar</span><span class="dd-arrow">▸</span>
+      <div class="menu-dropdown"></div>
+    </div>
+    <div class="dd-sep"></div>
+    <div class="dd-item dd-submenu">
+      <span class="dd-label" style="padding-left:0">Estilos</span><span class="dd-arrow">▸</span>
+      <div class="menu-dropdown"></div>
+    </div>
+    <div class="dd-item"><span class="dd-label" style="padding-left:0">Adicionar notas...</span></div>
+    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionOptions.svg')"></span><span class="dd-label">Propriedades...</span></div>
   </div>
 
   <div id="modal-overlay">
@@ -571,10 +896,12 @@
   </div>
 
   <div id="attr-panel" class="collapsed">
+    <div id="attr-resize-handle" title="Arraste para redimensionar"></div>
     <div id="attr-header">
       <span class="title">Tabela de atributos</span>
       <div id="attr-header-right">
         <span id="unsaved-badge">edições não salvas</span>
+        <span id="attr-dock-toggle" title="Mover tabela de atributos para a lateral direita">⇥ mover p/ lateral</span>
         <span id="attr-toggle">▲ expandir</span>
       </div>
     </div>
@@ -606,6 +933,68 @@
 </div>
 
 <script>
+  // ---------------- Menubar: abrir/fechar dropdowns (apenas visual, sem ações atribuídas) ----------------
+  (function initMenubar() {
+    const menubar = document.getElementById('menubar');
+    if (!menubar) return;
+    const menuItems = Array.from(menubar.querySelectorAll(':scope > .menu-item'));
+
+    function closeAll() {
+      menuItems.forEach(mi => mi.classList.remove('open'));
+    }
+
+    menuItems.forEach(mi => {
+      mi.addEventListener('click', (e) => {
+        // Evita fechar imediatamente ao clicar em um item interno do dropdown
+        if (e.target.closest('.menu-dropdown')) return;
+        const wasOpen = mi.classList.contains('open');
+        closeAll();
+        if (!wasOpen) mi.classList.add('open');
+      });
+      // Se já existe um menu aberto e o mouse passa por outro item do menubar, troca automaticamente
+      mi.addEventListener('mouseenter', () => {
+        if (menuItems.some(m => m.classList.contains('open')) && !mi.classList.contains('open')) {
+          closeAll();
+          mi.classList.add('open');
+        }
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#menubar')) closeAll();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeAll();
+    });
+  })();
+
+  // ---------------- Menu de contexto de Camada (botão direito) — apenas visual, sem ações atribuídas ----------------
+  (function initLayerContextMenu() {
+    const ctxMenu = document.getElementById('layer-context-menu');
+    if (!ctxMenu) return;
+
+    document.addEventListener('contextmenu', (e) => {
+      const row = e.target.closest('.layer-row');
+      if (!row) return;
+      e.preventDefault();
+      row.click(); // seleciona a camada clicada, como no QGIS
+      const menuWidth = 260, menuHeight = 480;
+      let x = e.clientX, y = e.clientY;
+      if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 6;
+      if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 6;
+      ctxMenu.style.left = x + 'px';
+      ctxMenu.style.top = y + 'px';
+      ctxMenu.classList.add('show');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#layer-context-menu')) ctxMenu.classList.remove('show');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') ctxMenu.classList.remove('show');
+    });
+  })();
+
   // ---------------- Estado ----------------
   const state = {
     map: null,
@@ -1201,11 +1590,263 @@
   }
 
   // ---------------- Painel de atributos: expandir/recolher ----------------
-  document.getElementById('attr-header').addEventListener('click', () => {
+  document.getElementById('attr-header').addEventListener('click', (e) => {
+    if (e.target.closest('#attr-dock-toggle')) return; // botão de mover para lateral tem ação própria
     const panel = document.getElementById('attr-panel');
     const collapsed = panel.classList.toggle('collapsed');
     document.getElementById('attr-toggle').textContent = collapsed ? '▲ expandir' : '▼ recolher';
   });
+
+  // ================= Tabela de atributos: redimensionar e mudar de lado (dock) =================
+  const ATTR_LAYOUT_KEY = 'qgisWebProto_attrPanelLayout_v1';
+  const attrPanelEl = document.getElementById('attr-panel');
+  const attrResizeHandle = document.getElementById('attr-resize-handle');
+  const bodyEl = document.getElementById('body');
+  const attrDockToggle = document.getElementById('attr-dock-toggle');
+
+  function loadAttrLayout() {
+    try {
+      const raw = localStorage.getItem(ATTR_LAYOUT_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* localStorage indisponível */ }
+    return { dock: 'bottom', size: 190 };
+  }
+  let attrLayout = loadAttrLayout();
+
+  function saveAttrLayout() {
+    try { localStorage.setItem(ATTR_LAYOUT_KEY, JSON.stringify(attrLayout)); }
+    catch (e) { /* localStorage indisponível — preferência só dura a sessão */ }
+  }
+
+  function applyAttrLayout() {
+    const collapsed = attrPanelEl.classList.contains('collapsed');
+    if (attrLayout.dock === 'right') {
+      bodyEl.classList.add('attr-dock-right');
+      // move o painel para dentro de #body, depois do map-wrap, para ficar à direita do mapa
+      bodyEl.appendChild(attrPanelEl);
+      if (!collapsed) attrPanelEl.style.width = attrLayout.size + 'px';
+      else attrPanelEl.style.width = '';
+      attrPanelEl.style.height = '';
+      attrDockToggle.textContent = '⇤ mover p/ baixo';
+      attrDockToggle.title = 'Mover tabela de atributos para embaixo do mapa';
+    } else {
+      bodyEl.classList.remove('attr-dock-right');
+      // devolve o painel para ser irmão de #body (após ele), na parte de baixo da tela
+      bodyEl.parentNode.insertBefore(attrPanelEl, bodyEl.nextSibling);
+      if (!collapsed) attrPanelEl.style.height = attrLayout.size + 'px';
+      else attrPanelEl.style.height = '';
+      attrPanelEl.style.width = '';
+      attrDockToggle.textContent = '⇥ mover p/ lateral';
+      attrDockToggle.title = 'Mover tabela de atributos para a lateral direita';
+    }
+  }
+
+  attrDockToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    attrLayout.dock = (attrLayout.dock === 'right') ? 'bottom' : 'right';
+    saveAttrLayout();
+    applyAttrLayout();
+    toast(attrLayout.dock === 'right'
+      ? 'Tabela de atributos movida para a lateral direita.'
+      : 'Tabela de atributos movida para embaixo do mapa.');
+  });
+
+  // Redimensionamento por arraste (funciona tanto para altura, quando embaixo, quanto para largura, quando na lateral)
+  (function setupAttrResize() {
+    let dragging = false;
+    let startPos = 0;
+    let startSize = 0;
+
+    attrResizeHandle.addEventListener('mousedown', (e) => {
+      if (attrPanelEl.classList.contains('collapsed')) return; // nada a redimensionar quando recolhida
+      dragging = true;
+      attrResizeHandle.classList.add('resizing');
+      document.body.style.userSelect = 'none';
+      if (attrLayout.dock === 'right') {
+        startPos = e.clientX;
+        startSize = attrPanelEl.getBoundingClientRect().width;
+        document.body.style.cursor = 'ew-resize';
+      } else {
+        startPos = e.clientY;
+        startSize = attrPanelEl.getBoundingClientRect().height;
+        document.body.style.cursor = 'ns-resize';
+      }
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      if (attrLayout.dock === 'right') {
+        // arrastar a borda esquerda do painel: mover para a esquerda aumenta a largura
+        const delta = startPos - e.clientX;
+        let newWidth = startSize + delta;
+        newWidth = Math.max(180, Math.min(newWidth, window.innerWidth - 260));
+        attrPanelEl.style.width = newWidth + 'px';
+        attrLayout.size = newWidth;
+      } else {
+        // arrastar a borda superior do painel: mover para cima aumenta a altura
+        const delta = startPos - e.clientY;
+        let newHeight = startSize + delta;
+        const maxHeight = window.innerHeight - 160;
+        newHeight = Math.max(80, Math.min(newHeight, maxHeight));
+        attrPanelEl.style.height = newHeight + 'px';
+        attrLayout.size = newHeight;
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      attrResizeHandle.classList.remove('resizing');
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      saveAttrLayout();
+    });
+  })();
+
+  applyAttrLayout();
+
+  // ================= Barra de ferramentas: arrastar para reordenar grupos de ícones =================
+  // Cada ".toolbar-group" pode ser arrastado pela sua ".drag-handle" para uma nova posição
+  // dentro da mesma barra ou para a outra barra de ferramentas (toolbar / toolbar2).
+  const TOOLBAR_ORDER_KEY = 'qgisWebProto_toolbarOrder_v1';
+
+  function getToolbarGroupId(groupEl) {
+    return groupEl.getAttribute('data-toolbar') || '';
+  }
+
+  function saveToolbarOrder() {
+    const order = {};
+    ['toolbar', 'toolbar2'].forEach(barId => {
+      const bar = document.getElementById(barId);
+      if (!bar) return;
+      order[barId] = Array.from(bar.querySelectorAll(':scope > .toolbar-group'))
+        .map(getToolbarGroupId)
+        .filter(Boolean);
+    });
+    try { localStorage.setItem(TOOLBAR_ORDER_KEY, JSON.stringify(order)); }
+    catch (e) { /* localStorage indisponível — preferência só dura a sessão */ }
+  }
+
+  function loadToolbarOrder() {
+    try {
+      const raw = localStorage.getItem(TOOLBAR_ORDER_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* localStorage indisponível */ }
+    return null;
+  }
+
+  // Move um grupo (e sua drag-handle + separador que o precedem, se existirem) para logo antes de "beforeEl"
+  // dentro do container "targetBar". Se beforeEl for null, insere no final.
+  function moveGroupUnit(groupEl, targetBar, beforeEl) {
+    const prevHandle = groupEl.previousElementSibling && groupEl.previousElementSibling.classList.contains('drag-handle')
+      ? groupEl.previousElementSibling : null;
+    const prevSep = prevHandle && prevHandle.previousElementSibling && prevHandle.previousElementSibling.classList.contains('toolbar-sep')
+      ? prevHandle.previousElementSibling : null;
+
+    const nodesToMove = [prevSep, prevHandle, groupEl].filter(Boolean);
+    nodesToMove.forEach(node => {
+      targetBar.insertBefore(node, beforeEl || null);
+    });
+  }
+
+  function applyToolbarOrder() {
+    const order = loadToolbarOrder();
+    if (!order) return;
+    ['toolbar', 'toolbar2'].forEach(barId => {
+      const bar = document.getElementById(barId);
+      if (!bar || !order[barId]) return;
+      order[barId].forEach(groupId => {
+        const groupEl = bar.querySelector(`:scope > .toolbar-group[data-toolbar="${groupId}"]`)
+          || document.querySelector(`.toolbar-group[data-toolbar="${groupId}"]`);
+        if (groupEl) moveGroupUnit(groupEl, bar, null);
+      });
+    });
+  }
+
+  function setupToolbarDragAndDrop() {
+    const bars = [document.getElementById('toolbar'), document.getElementById('toolbar2')].filter(Boolean);
+    let draggedGroup = null;
+
+    bars.forEach(bar => {
+      // alças que são irmãs, logo antes de um grupo (caso comum)
+      const siblingHandles = Array.from(bar.querySelectorAll(':scope > .drag-handle'))
+        .map(handle => ({ handle, groupEl: handle.nextElementSibling }));
+      // alça que fica dentro do próprio primeiro grupo (ex.: "mapnav" no toolbar principal)
+      const innerHandles = Array.from(bar.querySelectorAll(':scope > .toolbar-group > .drag-handle:first-child'))
+        .map(handle => ({ handle, groupEl: handle.parentElement }));
+
+      [...siblingHandles, ...innerHandles].forEach(({ handle, groupEl }) => {
+        if (!groupEl || !groupEl.classList.contains('toolbar-group')) return;
+
+        handle.setAttribute('draggable', 'true');
+
+        handle.addEventListener('dragstart', (e) => {
+          draggedGroup = groupEl;
+          groupEl.classList.add('tg-dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', getToolbarGroupId(groupEl)); } catch (err) {}
+        });
+
+        handle.addEventListener('dragend', () => {
+          if (draggedGroup) draggedGroup.classList.remove('tg-dragging');
+          document.querySelectorAll('.toolbar-group.tg-drop-before, .toolbar-group.tg-drop-after')
+            .forEach(el => el.classList.remove('tg-drop-before', 'tg-drop-after'));
+          bars.forEach(b => b.classList.remove('tg-drop-target-empty'));
+          draggedGroup = null;
+        });
+      });
+
+      // Permite soltar sobre qualquer grupo (para reordenar) ou na área vazia da barra
+      bar.addEventListener('dragover', (e) => {
+        if (!draggedGroup) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        const targetGroup = e.target.closest('.toolbar-group');
+        document.querySelectorAll('.toolbar-group.tg-drop-before, .toolbar-group.tg-drop-after')
+          .forEach(el => el.classList.remove('tg-drop-before', 'tg-drop-after'));
+
+        if (targetGroup && targetGroup !== draggedGroup) {
+          const rect = targetGroup.getBoundingClientRect();
+          const before = (e.clientX - rect.left) < rect.width / 2;
+          targetGroup.classList.add(before ? 'tg-drop-before' : 'tg-drop-after');
+          bar.classList.remove('tg-drop-target-empty');
+        } else if (!targetGroup) {
+          bar.classList.add('tg-drop-target-empty');
+        }
+      });
+
+      bar.addEventListener('dragleave', (e) => {
+        if (e.target === bar) bar.classList.remove('tg-drop-target-empty');
+      });
+
+      bar.addEventListener('drop', (e) => {
+        if (!draggedGroup) return;
+        e.preventDefault();
+
+        const targetGroup = e.target.closest('.toolbar-group');
+        if (targetGroup && targetGroup !== draggedGroup) {
+          const rect = targetGroup.getBoundingClientRect();
+          const before = (e.clientX - rect.left) < rect.width / 2;
+          moveGroupUnit(draggedGroup, bar, before ? targetGroup : targetGroup.nextElementSibling);
+        } else if (!targetGroup) {
+          moveGroupUnit(draggedGroup, bar, null);
+        }
+
+        draggedGroup.classList.remove('tg-dragging');
+        document.querySelectorAll('.toolbar-group.tg-drop-before, .toolbar-group.tg-drop-after')
+          .forEach(el => el.classList.remove('tg-drop-before', 'tg-drop-after'));
+        bar.classList.remove('tg-drop-target-empty');
+        draggedGroup = null;
+        saveToolbarOrder();
+        toast('Grupo de ferramentas reposicionado.');
+      });
+    });
+  }
+
+  applyToolbarOrder();
+  setupToolbarDragAndDrop();
 
   // ---------------- Zoom para extensão ----------------
   document.getElementById('btn-zoom-extent').addEventListener('click', () => {
