@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>QGIS Web — Protótipo</title>
+<title>QGIS Web</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -388,47 +388,47 @@
   <div id="toolbar">
     <div class="toolbar-group" data-toolbar="mapnav" style="display:flex;align-items:center;">
     <div class="drag-handle"></div>
-    <button class="tool-btn" id="btn-pan" title="Pan (navegar pelo mapa)" style="background-image:url('icons/pan.svg')"></button>
-    <button class="tool-btn" id="btn-zoom-in" title="Aproximar zoom" style="background-image:url('icons/zoom-in.svg')"></button>
-    <button class="tool-btn" id="btn-zoom-out" title="Reduzir zoom" style="background-image:url('icons/zoom-out.svg')"></button>
-    <button class="tool-btn" id="btn-zoom-extent" disabled title="Zoom para extensão da camada" style="background-image:url('icons/zoom-full.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-last" title="Zoom anterior" style="background-image:url('icons/zoom-last.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-next" title="Próximo zoom" style="background-image:url('icons/zoom-next.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Aproximar para resolução nativa (100%)" style="background-image:url('icons/zoom-actual.svg')"></button>
+    <button class="tool-btn" id="btn-pan" title="Pan (navegar pelo mapa)" style="background-image:url('icons/mActionPan.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-in" title="Aproximar zoom" style="background-image:url('icons/mActionZoomIn.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-out" title="Reduzir zoom" style="background-image:url('icons/mActionZoomOut.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-extent" disabled title="Zoom para extensão da camada" style="background-image:url('icons/mActionZoomFullExtent.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-last" title="Zoom anterior" style="background-image:url('icons/mActionZoomLast.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-next" title="Próximo zoom" style="background-image:url('icons/mActionZoomNext.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Aproximar para resolução nativa (100%)" style="background-image:url('icons/mActionZoomActual.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="project" style="display:flex;align-items:center;">
-    <button class="tool-btn" id="btn-import" title="Importar shapefile (.zip com .shp/.shx/.dbf/.prj)" style="background-image:url('icons/add-vector.svg')"></button>
+    <button class="tool-btn" id="btn-import" title="Importar shapefile (.zip com .shp/.shx/.dbf/.prj)" style="background-image:url('icons/mActionAddOgrLayer.svg')"></button>
     <input type="file" id="file-input" accept=".zip" />
-    <button class="tool-btn" id="btn-export" disabled title="Exportar como shapefile (.zip)" style="background-image:url('icons/save-project-as.svg')"></button>
+    <button class="tool-btn" id="btn-export" disabled title="Exportar como shapefile (.zip)" style="background-image:url('icons/mActionFileSaveAs.svg')"></button>
     <div class="toolbar-sep"></div>
-    <button class="tool-btn" id="btn-undo" disabled title="Desfazer (Ctrl+Z)" style="background-image:url('icons/undo-edit.svg')"></button>
-    <button class="tool-btn" id="btn-redo" disabled title="Refazer (Ctrl+Y)" style="background-image:url('icons/redo-edit.svg')"></button>
+    <button class="tool-btn" id="btn-undo" disabled title="Desfazer (Ctrl+Z)" style="background-image:url('icons/mActionUndo.svg')"></button>
+    <button class="tool-btn" id="btn-redo" disabled title="Refazer (Ctrl+Y)" style="background-image:url('icons/mActionRedo.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="selection" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-select-rect" title="Selecionar feições por retângulo" style="background-image:url('icons/select-rect.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-select-rect" title="Selecionar feições por retângulo" style="background-image:url('icons/mActionSelectRectangle.svg')"></button>
     <button class="tool-dropdown" disabled title="Outros modos de seleção">▾</button>
-    <button class="tool-btn not-implemented" id="btn-copy-features" title="Copiar feições" style="background-image:url('icons/copy-features.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-copy-features" title="Copiar feições" style="background-image:url('icons/mActionEditCopy.svg')"></button>
     <button class="tool-dropdown" disabled title="Colar feições">▾</button>
-    <button class="tool-btn not-implemented" id="btn-deselect" title="Limpar seleção" style="background-image:url('icons/deselect.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-deselect" title="Limpar seleção" style="background-image:url('icons/mActionDeselectAll.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-bookmark" title="Marcadores espaciais" style="background-image:url('icons/bookmark-new.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-bookmark" title="Marcadores espaciais" style="background-image:url('icons/mActionNewBookmark.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="attributes" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-identify" title="Identificar feições" style="background-image:url('icons/identify.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-select-expr" title="Selecionar feições por expressão" style="background-image:url('icons/select-expr.svg')"></button>
-    <button class="tool-btn" id="btn-open-attr" disabled title="Abrir tabela de atributos" style="background-image:url('icons/open-attr-table.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-identify" title="Identificar feições" style="background-image:url('icons/mActionIdentify.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-select-expr" title="Selecionar feições por expressão" style="background-image:url('icons/mIconExpressionSelect.svg')"></button>
+    <button class="tool-btn" id="btn-open-attr" disabled title="Abrir tabela de atributos" style="background-image:url('icons/mActionOpenTable.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-stats" title="Resumo estatístico" style="background-image:url('icons/stats-summary.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-stats" title="Resumo estatístico" style="background-image:url('icons/mAlgorithmBasicStatistics.svg')"></button>
     <div class="toolbar-sep"></div>
-    <button class="tool-btn" id="btn-measure" disabled title="Medir distância" style="background-image:url('icons/measure-line.svg')"></button>
+    <button class="tool-btn" id="btn-measure" disabled title="Medir distância" style="background-image:url('icons/mActionMeasure.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-maptips" title="Mostrar dicas de mapa" style="background-image:url('icons/maptips.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-to-sel" title="Zoom para seleção" style="background-image:url('icons/zoom-selection.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-maptips" title="Mostrar dicas de mapa" style="background-image:url('icons/mActionMapTips.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-to-sel" title="Zoom para seleção" style="background-image:url('icons/mActionZoomToSelected.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
   </div>
   </div>
@@ -436,109 +436,109 @@
   <div id="toolbar2">
     <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="datasource" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-new-vector-layer" title="Nova camada shapefile" style="background-image:url('icons/new-scratch.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-new-gpkg-layer" title="Nova camada GeoPackage" style="background-image:url('icons/new-shapefile.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-new-spatialite-layer" title="Nova camada SpatiaLite" style="background-image:url('icons/new-spatialite.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-new-scratch-layer" title="Nova camada temporária" style="background-image:url('icons/new-scratch.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-new-mesh-layer" title="Nova camada de malha" style="background-image:url('icons/new-mesh-layer.svg')"></button>
-    <button class="tool-btn" id="btn-data-source-mgr" title="Gerenciador de fontes de dados (importar shapefile)" style="background-image:url('icons/data-source-mgr.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-vector-layer" title="Nova camada shapefile" style="background-image:url('icons/mActionCreateMemory.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-gpkg-layer" title="Nova camada GeoPackage" style="background-image:url('icons/mActionNewVectorLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-spatialite-layer" title="Nova camada SpatiaLite" style="background-image:url('icons/mActionNewSpatiaLiteLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-scratch-layer" title="Nova camada temporária" style="background-image:url('icons/mActionCreateMemory.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-mesh-layer" title="Nova camada de malha" style="background-image:url('icons/mActionNewMeshLayer.svg')"></button>
+    <button class="tool-btn" id="btn-data-source-mgr" title="Gerenciador de fontes de dados (importar shapefile)" style="background-image:url('icons/mActionDataSourceManager.svg')"></button>
     <button class="tool-dropdown" title="Mais opções de camada">▾</button>
-    <button class="tool-btn not-implemented" id="btn-add-wms" title="Adicionar camada WMS/WMTS" style="background-image:url('icons/add-wms.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-add-vtile" title="Adicionar camada de blocos vetoriais" style="background-image:url('icons/add-vector-tile.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-wms" title="Adicionar camada WMS/WMTS" style="background-image:url('icons/mActionAddWmsLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-vtile" title="Adicionar camada de blocos vetoriais" style="background-image:url('icons/mActionAddVectorTileLayer.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="digitizing" style="display:flex;align-items:center;">
-    <button class="tool-btn" id="btn-toggle-edit" disabled title="Alternar modo de edição de atributos" style="background-image:url('icons/toggle-edit.svg')"></button>
-    <button class="tool-btn" id="btn-save-edits-tb" disabled title="Salvar edições na camada" style="background-image:url('icons/save-edits.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-all-edits" title="Edições atuais (todas as camadas)" style="background-image:url('icons/current-edits.svg')"></button>
+    <button class="tool-btn" id="btn-toggle-edit" disabled title="Alternar modo de edição de atributos" style="background-image:url('icons/mActionToggleEditing.svg')"></button>
+    <button class="tool-btn" id="btn-save-edits-tb" disabled title="Salvar edições na camada" style="background-image:url('icons/mActionSaveEdits.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-all-edits" title="Edições atuais (todas as camadas)" style="background-image:url('icons/mActionAllEdits.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     <div class="toolbar-sep"></div>
-    <button class="tool-btn" id="btn-draw-point" disabled title="Adicionar feição de ponto" style="background-image:url('icons/add-feature-tb.svg')"></button>
-    <button class="tool-btn" id="btn-draw-line" disabled title="Adicionar feição de linha" style="background-image:url('icons/shape-rect.svg')"></button>
-    <button class="tool-btn" id="btn-draw-polygon" disabled title="Adicionar feição de polígono" style="background-image:url('icons/shape-regular-polygon.svg')"></button>
-    <button class="tool-btn" id="btn-add-feature-tb" disabled title="Adicionar registro/feição na camada selecionada" style="background-image:url('icons/add-feature-tb.svg')"></button>
-    <button class="tool-btn" id="btn-toggle-geom-edit" disabled title="Alternar edição de geometria (mover vértices)" style="background-image:url('icons/vertex-tool.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-delete-selected" title="Excluir feições selecionadas" style="background-image:url('icons/delete-selected.svg')"></button>
+    <button class="tool-btn" id="btn-draw-point" disabled title="Adicionar feição de ponto" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
+    <button class="tool-btn" id="btn-draw-line" disabled title="Adicionar feição de linha" style="background-image:url('icons/mActionAddBasicRectangle.svg')"></button>
+    <button class="tool-btn" id="btn-draw-polygon" disabled title="Adicionar feição de polígono" style="background-image:url('icons/mActionRegularPolygonCenterPoint.svg')"></button>
+    <button class="tool-btn" id="btn-add-feature-tb" disabled title="Adicionar registro/feição na camada selecionada" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
+    <button class="tool-btn" id="btn-toggle-geom-edit" disabled title="Alternar edição de geometria (mover vértices)" style="background-image:url('icons/mActionVertexTool.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-delete-selected" title="Excluir feições selecionadas" style="background-image:url('icons/mActionDeleteSelectedFeatures.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="advdigitizing" style="display:flex;align-items:center;">
-    <button class="tool-label-btn has-icon" id="btn-buffer" disabled title="Criar zona de buffer ao redor da feição selecionada" style="background-image:url('icons/reshape.svg')">Buffer</button>
-    <button class="tool-label-btn has-icon" id="btn-intersect" disabled title="Interseção entre duas camadas" style="background-image:url('icons/merge-features.svg')">Interseção</button>
-    <button class="tool-label-btn has-icon" id="btn-union" disabled title="Unir todas as feições de duas camadas em uma só" style="background-image:url('icons/merge-attrs.svg')">Unir camadas</button>
-    <button class="tool-label-btn has-icon" id="btn-clip" disabled title="Recortar uma camada usando outra como máscara" style="background-image:url('icons/split-features.svg')">Recortar</button>
-    <button class="tool-label-btn has-icon" id="btn-split" disabled title="Dividir uma feição em duas, desenhando uma linha de corte" style="background-image:url('icons/split-parts.svg')">Dividir feição</button>
+    <button class="tool-label-btn has-icon" id="btn-buffer" disabled title="Criar zona de buffer ao redor da feição selecionada" style="background-image:url('icons/mActionReshape.svg')">Buffer</button>
+    <button class="tool-label-btn has-icon" id="btn-intersect" disabled title="Interseção entre duas camadas" style="background-image:url('icons/mActionMergeFeatures.svg')">Interseção</button>
+    <button class="tool-label-btn has-icon" id="btn-union" disabled title="Unir todas as feições de duas camadas em uma só" style="background-image:url('icons/mActionMergeFeatureAttributes.svg')">Unir camadas</button>
+    <button class="tool-label-btn has-icon" id="btn-clip" disabled title="Recortar uma camada usando outra como máscara" style="background-image:url('icons/mActionSplitFeatures.svg')">Recortar</button>
+    <button class="tool-label-btn has-icon" id="btn-split" disabled title="Dividir uma feição em duas, desenhando uma linha de corte" style="background-image:url('icons/mActionSplitParts.svg')">Dividir feição</button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="managelayers2" style="display:flex;align-items:center;">
     <div class="drag-handle"></div>
-    <button class="tool-btn not-implemented" id="btn-add-layer" title="Adicionar camada" style="background-image:url('icons/add-layer.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-add-raster" title="Adicionar camada raster" style="background-image:url('icons/add-raster.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-add-mesh" title="Adicionar camada de malha" style="background-image:url('icons/add-mesh.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-add-delimited-text" title="Adicionar camada de texto delimitado" style="background-image:url('icons/add-delimited-text.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-add-pointcloud" title="Adicionar camada de nuvem de pontos" style="background-image:url('icons/add-pointcloud.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-layer" title="Adicionar camada" style="background-image:url('icons/mActionAddLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-raster" title="Adicionar camada raster" style="background-image:url('icons/mActionAddRasterLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-mesh" title="Adicionar camada de malha" style="background-image:url('icons/mActionAddMeshLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-delimited-text" title="Adicionar camada de texto delimitado" style="background-image:url('icons/mActionAddDelimitedTextLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-pointcloud" title="Adicionar camada de nuvem de pontos" style="background-image:url('icons/mActionAddPointCloudLayer.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="createlayer" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-new-postgis" title="Nova camada PostGIS" style="background-image:url('icons/new-postgis.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-postgis" title="Nova camada PostGIS" style="background-image:url('icons/mActionNewGeoPackageLayer.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-add-xyz" title="Adicionar camada XYZ/WMTS" style="background-image:url('icons/add-xyz.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-new-virtual" title="Nova camada virtual" style="background-image:url('icons/new-virtual.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-xyz" title="Adicionar camada XYZ/WMTS" style="background-image:url('icons/mActionAddXyzLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-virtual" title="Nova camada virtual" style="background-image:url('icons/mActionNewVirtualLayer.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="labels" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-toggle-labels" title="Ativar/desativar rotulagem e diagramas" style="background-image:url('icons/toggle-labels.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-diagrams" title="Diagramas" style="background-image:url('icons/diagrams.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-toggle-labels" title="Ativar/desativar rotulagem e diagramas" style="background-image:url('icons/mActionLabeling.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-diagrams" title="Diagramas" style="background-image:url('icons/diagram.svg')"></button>
     <div class="toolbar-sep"></div>
-    <button class="tool-btn not-implemented" id="btn-pin-labels" title="Fixar rótulos" style="background-image:url('icons/pin-labels.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-show-hide-labels" title="Mostrar/ocultar rótulos e diagramas selecionados" style="background-image:url('icons/show-hide-labels.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-pin-labels" title="Fixar rótulos" style="background-image:url('icons/mActionPinLabels.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-show-hide-labels" title="Mostrar/ocultar rótulos e diagramas selecionados" style="background-image:url('icons/mActionShowHideLabels.svg')"></button>
     <div class="toolbar-sep"></div>
-    <button class="tool-btn not-implemented" id="btn-move-label" title="Mover rótulo, diagrama ou callout" style="background-image:url('icons/move-label.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-rotate-label" title="Girar rótulo" style="background-image:url('icons/rotate-label.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-change-label" title="Alterar propriedades do rótulo" style="background-image:url('icons/change-label.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-move-label" title="Mover rótulo, diagrama ou callout" style="background-image:url('icons/mActionMoveLabel.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-rotate-label" title="Girar rótulo" style="background-image:url('icons/mActionRotateLabel.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-change-label" title="Alterar propriedades do rótulo" style="background-image:url('icons/mActionChangeLabelProperties.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="advdigitizing2" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-simplify" title="Simplificar feição" style="background-image:url('icons/simplify.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-vertex-tool" title="Ferramenta de vértices" style="background-image:url('icons/vertex-tool.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-simplify" title="Simplificar feição" style="background-image:url('icons/mActionSimplify.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-vertex-tool" title="Ferramenta de vértices" style="background-image:url('icons/mActionVertexTool.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-move-feature" title="Mover feição" style="background-image:url('icons/move-feature.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-add-ring" title="Adicionar anel" style="background-image:url('icons/add-ring.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-fill-ring" title="Preencher anel" style="background-image:url('icons/fill-ring.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-delete-ring" title="Excluir anel" style="background-image:url('icons/delete-ring.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-add-part" title="Adicionar parte" style="background-image:url('icons/add-part.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-delete-part" title="Excluir parte" style="background-image:url('icons/delete-part.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-reshape" title="Remodelar feição" style="background-image:url('icons/reshape.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-offset-curve" title="Deslocar curva" style="background-image:url('icons/offset-curve.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-rotate-feature" title="Girar feição" style="background-image:url('icons/rotate-feature.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-scale-feature" title="Escalar feição" style="background-image:url('icons/scale-feature.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-split-features2" title="Dividir feições" style="background-image:url('icons/split-features.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-split-parts2" title="Dividir partes" style="background-image:url('icons/split-parts.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-merge-features2" title="Mesclar feições" style="background-image:url('icons/merge-features.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-merge-attrs2" title="Mesclar atributos de feições" style="background-image:url('icons/merge-attrs.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-rotate-point-symbols" title="Girar símbolos de ponto" style="background-image:url('icons/rotate-point-symbols.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-move-feature" title="Mover feição" style="background-image:url('icons/mActionMoveFeature.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-ring" title="Adicionar anel" style="background-image:url('icons/mActionAddRing.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-fill-ring" title="Preencher anel" style="background-image:url('icons/mActionFillRing.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-delete-ring" title="Excluir anel" style="background-image:url('icons/mActionDeleteRing.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-part" title="Adicionar parte" style="background-image:url('icons/mActionAddPart.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-delete-part" title="Excluir parte" style="background-image:url('icons/mActionDeletePart.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-reshape" title="Remodelar feição" style="background-image:url('icons/mActionReshape.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-offset-curve" title="Deslocar curva" style="background-image:url('icons/mActionOffsetCurve.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-rotate-feature" title="Girar feição" style="background-image:url('icons/mActionRotateFeature.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-scale-feature" title="Escalar feição" style="background-image:url('icons/mActionScaleFeature.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-split-features2" title="Dividir feições" style="background-image:url('icons/mActionSplitFeatures.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-split-parts2" title="Dividir partes" style="background-image:url('icons/mActionSplitParts.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-merge-features2" title="Mesclar feições" style="background-image:url('icons/mActionMergeFeatures.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-merge-attrs2" title="Mesclar atributos de feições" style="background-image:url('icons/mActionMergeFeatureAttributes.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-rotate-point-symbols" title="Girar símbolos de ponto" style="background-image:url('icons/mActionRotatePointSymbols.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="shapedigitizing" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-shape-rect" title="Retângulo" style="background-image:url('icons/shape-rect.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-shape-circle" title="Círculo" style="background-image:url('icons/shape-circle.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-shape-ellipse" title="Elipse" style="background-image:url('icons/shape-ellipse.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-shape-regular" title="Polígono regular" style="background-image:url('icons/shape-regular-polygon.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-shape-rect" title="Retângulo" style="background-image:url('icons/mActionAddBasicRectangle.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-shape-circle" title="Círculo" style="background-image:url('icons/mActionAddBasicCircle.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-shape-ellipse" title="Elipse" style="background-image:url('icons/mActionEllipseCenterPoint.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-shape-regular" title="Polígono regular" style="background-image:url('icons/mActionRegularPolygonCenterPoint.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="dbpython" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-db-toolbar" title="Barra de ferramentas de banco de dados" style="background-image:url('icons/db-toolbar.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-python-console" title="Console Python" style="background-image:url('icons/python-console.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-db-toolbar" title="Barra de ferramentas de banco de dados" style="background-image:url('icons/dbmanager.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-python-console" title="Console Python" style="background-image:url('icons/mIconPythonFile.svg')"></button>
     <div class="toolbar-sep"></div>
-    <button class="tool-btn not-implemented" id="btn-georeferencer" title="Georreferenciador" style="background-image:url('icons/georeferencer.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-coord-capture" title="Capturar coordenadas" style="background-image:url('icons/coord-capture.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-north-arrow" title="Seta norte" style="background-image:url('icons/north-arrow.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-georeferencer" title="Georreferenciador" style="background-image:url('icons/mGeorefRun.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-coord-capture" title="Capturar coordenadas" style="background-image:url('icons/mActionIdentifyByMouseOver.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-north-arrow" title="Seta norte" style="background-image:url('icons/mActionAddArrow.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group" data-toolbar="gps2" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-gps-track" title="Ativar rastreamento GPS" style="background-image:url('icons/gps-track.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-gps-panel" title="Painel GPS" style="background-image:url('icons/gps-panel.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-gps-track" title="Ativar rastreamento GPS" style="background-image:url('icons/mActionAddGpsLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-gps-panel" title="Painel GPS" style="background-image:url('icons/mIconGps.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <span id="autosave-indicator">💾 Salvo automaticamente</span>
@@ -579,12 +579,12 @@
       </div>
     </div>
     <div id="attr-toolbar">
-      <button class="tool-label-btn has-icon" id="btn-toggle-edit-2" title="Alternar modo de edição" style="background-image:url('icons/toggle-edit.svg')">✎ Alternar edição</button>
+      <button class="tool-label-btn has-icon" id="btn-toggle-edit-2" title="Alternar modo de edição" style="background-image:url('icons/mActionToggleEditing.svg')">✎ Alternar edição</button>
       <div class="toolbar-sep"></div>
-      <button class="tool-label-btn has-icon" id="btn-add-field" disabled title="Adicionar novo campo (coluna)" style="background-image:url('icons/field-calc.svg')">➕ Campo</button>
-      <button class="tool-label-btn has-icon" id="btn-add-feature" disabled title="Adicionar nova feição (linha)" style="background-image:url('icons/add-feature-tb.svg')">➕ Feição</button>
+      <button class="tool-label-btn has-icon" id="btn-add-field" disabled title="Adicionar novo campo (coluna)" style="background-image:url('icons/mActionCalculateField.svg')">➕ Campo</button>
+      <button class="tool-label-btn has-icon" id="btn-add-feature" disabled title="Adicionar nova feição (linha)" style="background-image:url('icons/mActionCapturePoint.svg')">➕ Feição</button>
       <div class="toolbar-sep"></div>
-      <button class="tool-label-btn has-icon" id="btn-save-edits" disabled title="Salvar edições na camada" style="background-image:url('icons/save-edits.svg')">💾 Salvar edições</button>
+      <button class="tool-label-btn has-icon" id="btn-save-edits" disabled title="Salvar edições na camada" style="background-image:url('icons/mActionSaveEdits.svg')">💾 Salvar edições</button>
     </div>
     <div id="attr-table-wrap">
       <div id="attr-empty">Selecione uma camada para ver seus atributos.</div>
