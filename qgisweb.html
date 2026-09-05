@@ -1,0 +1,1894 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>QGIS Web — Protótipo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+<script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+<script src="https://unpkg.com/@mapbox/shp-write@latest/shpwrite.js"></script>
+<style>
+  :root{
+    --panel-bg:#f0f0f0;
+    --panel-border:#b5b5b5;
+    --toolbar-bg:#e8e8e8;
+    --text:#1e1e1e;
+    --text-dim:#5a5a5a;
+    --accent:#3388cc;
+    --accent-dark:#2a6ca3;
+    --hover:#d8e8f5;
+    --selected:#cfe4f7;
+    --statusbar-bg:#e0e0e0;
+    --divider:#c4c4c4;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin:0; padding:0; height:100%; width:100%;
+    font-family: "Segoe UI", "Noto Sans", Arial, sans-serif;
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--panel-bg);
+    overflow: hidden;
+  }
+  #app { display:flex; flex-direction:column; height:100vh; width:100vw; }
+
+  /* ---------- Menu bar ---------- */
+  #menubar {
+    display:flex; align-items:center;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 2px 6px;
+    height: 24px;
+    flex-shrink:0;
+    gap: 2px;
+  }
+  #menubar .menu-item {
+    padding: 2px 9px;
+    cursor:default;
+    border-radius:2px;
+    color: var(--text);
+  }
+  #menubar .menu-item:hover { background: var(--hover); }
+
+  /* ---------- Toolbar ---------- */
+  #toolbar {
+    display:flex; align-items:center;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 3px 6px;
+    height: 34px;
+    flex-shrink:0;
+    gap: 2px;
+  }
+  .tool-btn {
+    display:flex; align-items:center; justify-content:center;
+    width: 27px; height: 27px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background-color: transparent;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 18px 18px;
+    cursor: pointer;
+    font-size: 15px;
+    color: var(--text);
+    flex-shrink:0;
+  }
+  .tool-btn:hover { background-color: var(--hover); border-color:#a9c9e6; }
+  .tool-btn:active, .tool-btn.active { background-color: var(--selected); border-color: var(--accent); }
+  .tool-btn:disabled { opacity:0.4; cursor:default; }
+  .tool-btn:disabled:hover { background-color:transparent; border-color:transparent; }
+
+  /* ---------- Ferramentas ainda não implementadas ---------- */
+  /* Ícone existe e é clicável (reservado para função futura), mas a ação
+     ainda não foi programada. A borda vermelha sinaliza isso visualmente. */
+  .tool-btn.not-implemented,
+  .tool-label-btn.not-implemented {
+    border-color: #d00000 !important;
+    box-shadow: inset 0 0 0 1px rgba(208,0,0,0.35);
+  }
+  .tool-btn.not-implemented:hover,
+  .tool-label-btn.not-implemented:hover {
+    background-color: #fce8e8;
+    border-color: #d00000 !important;
+  }
+  .toolbar-sep {
+    width:1px; height:22px; background:var(--divider); margin:0 5px;
+    flex-shrink:0;
+  }
+  .tool-label-btn {
+    display:flex; align-items:center; gap:5px;
+    height:27px; padding:0 9px 0 7px;
+    border:1px solid transparent; border-radius:3px;
+    background-color:transparent;
+    background-repeat:no-repeat;
+    background-position: 7px center;
+    background-size: 16px 16px;
+    cursor: pointer;
+    font-size:12px; color:var(--text); white-space:nowrap;
+  }
+  .tool-label-btn.has-icon { padding-left: 27px; }
+  .tool-label-btn:hover { background-color: var(--hover); border-color:#a9c9e6; }
+  .tool-label-btn:disabled { opacity:0.4; cursor:default; }
+
+  /* alça de arrastar no início de um grupo de ferramentas, como no QGIS real */
+  .drag-handle {
+    flex-shrink:0;
+    width:9px; height:22px; margin: 0 3px 0 1px;
+    background-image: radial-gradient(var(--text-dim) 1px, transparent 1.4px);
+    background-size: 3px 5px;
+    background-repeat: repeat;
+    background-position: 0 1px;
+    opacity:.55;
+  }
+
+  /* pequena seta de dropdown ao lado de uma ferramenta com variantes */
+  .tool-dropdown {
+    display:flex; align-items:center; justify-content:center;
+    width:11px; height:27px;
+    border:1px solid transparent; border-radius:3px;
+    background:transparent; cursor:pointer; flex-shrink:0;
+    color: var(--text-dim); font-size:9px;
+  }
+  .tool-dropdown:hover { background: var(--hover); border-color:#a9c9e6; }
+  .tool-dropdown:disabled { opacity:.4; cursor:default; }
+  .tool-group { display:flex; align-items:center; }
+
+  #toolbar2 {
+    display:flex; align-items:center; flex-wrap:wrap;
+    background: #f0ede4;
+    border-bottom: 1px solid var(--panel-border);
+    padding: 3px 6px;
+    min-height: 30px;
+    flex-shrink:0;
+    gap: 2px 0;
+    row-gap: 2px;
+  }
+  #autosave-indicator {
+    font-size:11px; color: var(--text-dim);
+    margin-left:6px; margin-right:4px;
+  }
+
+  /* ---------- Menu de contexto (botão direito nas barras de ferramentas) ---------- */
+  #tb-context-menu {
+    position: fixed;
+    display:none;
+    z-index: 5000;
+    background: #fff;
+    border: 1px solid #8f8f8f;
+    box-shadow: 2px 3px 9px rgba(0,0,0,0.28);
+    padding: 3px 0;
+    min-width: 260px;
+    max-height: 80vh;
+    overflow-y: auto;
+    font-size: 12px;
+    border-radius: 2px;
+  }
+  #tb-context-menu.open { display:block; }
+  #tb-context-menu .tbcm-item {
+    display:flex; align-items:center; gap:7px;
+    padding: 3px 10px 3px 10px;
+    cursor:default;
+    white-space:nowrap;
+    color: var(--text);
+  }
+  #tb-context-menu .tbcm-item:hover { background: var(--hover); }
+  #tb-context-menu .tbcm-check {
+    width:13px; height:13px;
+    border:1px solid #888;
+    border-radius:2px;
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:#fff;
+    font-size:10px; line-height:1;
+    color: var(--accent-dark);
+  }
+  #tb-context-menu .tbcm-item.checked .tbcm-check::after {
+    content:"✓";
+  }
+  #tb-context-menu .tbcm-item.disabled-item {
+    opacity:.45;
+    cursor:not-allowed;
+  }
+  #tb-context-menu .tbcm-sep {
+    height:1px; background:#ddd; margin:3px 6px;
+  }
+  .toolbar-group.tb-hidden { display:none !important; }
+
+  /* ---------- Body: panels + map ---------- */
+  #body { flex:1; display:flex; min-height:0; }
+
+  #layers-panel {
+    width: 230px;
+    background:#fafafa;
+    border-right: 1px solid var(--panel-border);
+    display:flex; flex-direction:column;
+    flex-shrink:0;
+  }
+  .panel-header {
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 4px 8px;
+    font-weight:600;
+    font-size:11.5px;
+    color: var(--text-dim);
+    letter-spacing:0.2px;
+  }
+  #layer-list {
+    flex:1; overflow-y:auto;
+    padding: 4px 2px;
+  }
+  .layer-row {
+    display:flex; align-items:center; gap:6px;
+    padding: 4px 6px;
+    border-radius:2px;
+    cursor:default;
+  }
+  .layer-row:hover { background: var(--hover); }
+  .layer-row.selected { background: var(--selected); }
+  .layer-swatch {
+    width:14px; height:14px; border-radius:2px;
+    border:1px solid rgba(0,0,0,0.35);
+    flex-shrink:0;
+  }
+  .layer-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .layer-count { color: var(--text-dim); font-size:10.5px; }
+  .layers-empty {
+    color: var(--text-dim); font-size:11.5px;
+    padding: 18px 12px; text-align:center; line-height:1.5;
+  }
+
+  #map-wrap { flex:1; position:relative; min-width:0; }
+  #map { position:absolute; inset:0; background:#dce9f2; }
+
+  #attr-panel {
+    height: 190px;
+    border-top: 1px solid var(--panel-border);
+    background:#fff;
+    display:flex; flex-direction:column;
+    flex-shrink:0;
+  }
+  #attr-panel.collapsed { height: 26px; }
+  #attr-panel.collapsed #attr-table-wrap { display:none; }
+  #attr-panel.collapsed #attr-toolbar { display:none; }
+  #attr-header {
+    display:flex; align-items:center; justify-content:space-between;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 4px 8px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  #attr-header span.title { font-weight:600; font-size:11.5px; color:var(--text-dim); }
+  #attr-header-right { display:flex; align-items:center; gap:10px; }
+  #attr-toggle { font-size:11px; color:var(--text-dim); }
+  #attr-toolbar {
+    display:flex; align-items:center; gap:4px;
+    padding: 3px 6px; background:#f5f5f5; border-bottom:1px solid var(--panel-border);
+    flex-shrink:0;
+  }
+  #attr-table-wrap { flex:1; overflow:auto; }
+  table#attr-table { border-collapse:collapse; width:100%; font-size:11.5px; }
+  table#attr-table th {
+    position:sticky; top:0;
+    background: #eef2f5; border:1px solid var(--panel-border);
+    padding: 4px 8px; text-align:left; white-space:nowrap;
+  }
+  table#attr-table th .th-inner { display:flex; align-items:center; gap:5px; }
+  table#attr-table th .del-field-btn {
+    border:none; background:transparent; color:#b33; cursor:pointer;
+    font-size:11px; padding:0 2px; line-height:1; opacity:0.55;
+  }
+  table#attr-table th .del-field-btn:hover { opacity:1; }
+  table#attr-table td {
+    border:1px solid #e2e2e2; padding: 0; white-space:nowrap;
+  }
+  table#attr-table td .cell-view { padding: 3px 8px; min-height:18px; cursor: cell; }
+  table#attr-table td input.cell-edit {
+    width:100%; box-sizing:border-box; border:1px solid var(--accent);
+    padding: 2px 7px; font-size:11.5px; font-family:inherit;
+    outline: none; background:#fffef2;
+  }
+  table#attr-table td.del-cell { text-align:center; width:26px; }
+  table#attr-table td.del-cell button {
+    border:none; background:transparent; color:#b33; cursor:pointer; font-size:12px; opacity:0.55;
+  }
+  table#attr-table td.del-cell button:hover { opacity:1; }
+  table#attr-table tr:hover td { background: var(--hover); }
+  table#attr-table tr.row-selected td { background: var(--selected); }
+  table#attr-table tr.row-edited td { background:#fff8dc; }
+  table#attr-table tr.row-edited.row-selected td { background:#f5ecb8; }
+  #attr-empty { color: var(--text-dim); padding: 14px; font-size:11.5px; }
+  #unsaved-badge {
+    display:none;
+    font-size:10.5px; color:#8a6d00; background:#fff3c4; border:1px solid #e0c352;
+    padding:1px 7px; border-radius:9px;
+  }
+  #unsaved-badge.show { display:inline-block; }
+
+  /* ---------- Modal de ferramentas de análise ---------- */
+  #modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.25);
+    z-index:2000; align-items:center; justify-content:center;
+  }
+  #modal-overlay.show { display:flex; }
+  #modal-box {
+    background:#f5f5f5; border:1px solid var(--panel-border); border-radius:4px;
+    width:320px; box-shadow:0 4px 18px rgba(0,0,0,0.25);
+  }
+  #modal-title {
+    background: var(--toolbar-bg); border-bottom:1px solid var(--panel-border);
+    padding:6px 10px; font-weight:600; font-size:12.5px;
+  }
+  #modal-body { padding:14px; display:flex; flex-direction:column; gap:10px; font-size:12px; }
+  #modal-body label { display:flex; flex-direction:column; gap:3px; }
+  #modal-body select, #modal-body input {
+    font-family:inherit; font-size:12px; padding:4px 6px;
+    border:1px solid var(--panel-border); border-radius:3px;
+  }
+  #modal-actions { display:flex; justify-content:flex-end; gap:6px; padding: 8px 14px 14px; }
+  #modal-actions button {
+    padding:5px 12px; font-size:12px; border-radius:3px; cursor:pointer;
+    border:1px solid var(--panel-border); background:#e8e8e8;
+  }
+  #modal-actions button.primary { background: var(--accent); color:#fff; border-color: var(--accent-dark); }
+
+  /* ---------- Medição no mapa ---------- */
+  #measure-result {
+    position:absolute; top:10px; right:10px; z-index:900;
+    background:#fff; border:1px solid var(--panel-border); border-radius:4px;
+    padding:6px 10px; font-size:11.5px; box-shadow:0 1px 4px rgba(0,0,0,0.15);
+    display:none;
+  }
+  #measure-result.show { display:block; }
+
+  /* ---------- Status bar ---------- */
+  #statusbar {
+    height: 22px; flex-shrink:0;
+    background: var(--statusbar-bg);
+    border-top: 1px solid var(--panel-border);
+    display:flex; align-items:center;
+    padding: 0 10px; gap: 18px;
+    font-size: 11px; color: var(--text-dim);
+  }
+  #statusbar .sep { width:1px; height:14px; background:var(--divider); }
+  #coord-display { min-width:170px; font-variant-numeric: tabular-nums; }
+
+  input[type=file] { display:none; }
+
+  /* Leaflet popup tweak to match tone */
+  .leaflet-popup-content { font-size:12px; }
+  .leaflet-container { font-family: inherit; }
+
+  /* toast */
+  #toast {
+    position:absolute; bottom:34px; left:50%; transform:translateX(-50%);
+    background:#333; color:#fff; padding:7px 14px; border-radius:4px;
+    font-size:12px; opacity:0; pointer-events:none; transition:opacity 0.25s;
+    z-index:1000;
+  }
+  #toast.show { opacity:0.95; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="menubar">
+    <div class="menu-item">Arquivo</div>
+    <div class="menu-item">Editar</div>
+    <div class="menu-item">Exibir</div>
+    <div class="menu-item">Camada</div>
+    <div class="menu-item">Configurações</div>
+    <div class="menu-item">Ajuda</div>
+  </div>
+
+  <div id="toolbar">
+    <div class="toolbar-group" data-toolbar="mapnav" style="display:flex;align-items:center;">
+    <div class="drag-handle"></div>
+    <button class="tool-btn" id="btn-pan" title="Pan (navegar pelo mapa)" style="background-image:url('icons/pan.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-in" title="Aproximar zoom" style="background-image:url('icons/zoom-in.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-out" title="Reduzir zoom" style="background-image:url('icons/zoom-out.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-extent" disabled title="Zoom para extensão da camada" style="background-image:url('icons/zoom-full.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-last" title="Zoom anterior" style="background-image:url('icons/zoom-last.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-next" title="Próximo zoom" style="background-image:url('icons/zoom-next.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Aproximar para resolução nativa (100%)" style="background-image:url('icons/zoom-actual.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="project" style="display:flex;align-items:center;">
+    <button class="tool-btn" id="btn-import" title="Importar shapefile (.zip com .shp/.shx/.dbf/.prj)" style="background-image:url('icons/add-vector.svg')"></button>
+    <input type="file" id="file-input" accept=".zip" />
+    <button class="tool-btn" id="btn-export" disabled title="Exportar como shapefile (.zip)" style="background-image:url('icons/save-project-as.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn" id="btn-undo" disabled title="Desfazer (Ctrl+Z)" style="background-image:url('icons/undo-edit.svg')"></button>
+    <button class="tool-btn" id="btn-redo" disabled title="Refazer (Ctrl+Y)" style="background-image:url('icons/redo-edit.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="selection" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-select-rect" title="Selecionar feições por retângulo" style="background-image:url('icons/select-rect.svg')"></button>
+    <button class="tool-dropdown" disabled title="Outros modos de seleção">▾</button>
+    <button class="tool-btn not-implemented" id="btn-copy-features" title="Copiar feições" style="background-image:url('icons/copy-features.svg')"></button>
+    <button class="tool-dropdown" disabled title="Colar feições">▾</button>
+    <button class="tool-btn not-implemented" id="btn-deselect" title="Limpar seleção" style="background-image:url('icons/deselect.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-bookmark" title="Marcadores espaciais" style="background-image:url('icons/bookmark-new.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="attributes" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-identify" title="Identificar feições" style="background-image:url('icons/identify.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-select-expr" title="Selecionar feições por expressão" style="background-image:url('icons/select-expr.svg')"></button>
+    <button class="tool-btn" id="btn-open-attr" disabled title="Abrir tabela de atributos" style="background-image:url('icons/open-attr-table.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-stats" title="Resumo estatístico" style="background-image:url('icons/stats-summary.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn" id="btn-measure" disabled title="Medir distância" style="background-image:url('icons/measure-line.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-maptips" title="Mostrar dicas de mapa" style="background-image:url('icons/maptips.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-to-sel" title="Zoom para seleção" style="background-image:url('icons/zoom-selection.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+  </div>
+  </div>
+
+  <div id="toolbar2">
+    <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="datasource" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-new-vector-layer" title="Nova camada shapefile" style="background-image:url('icons/new-scratch.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-gpkg-layer" title="Nova camada GeoPackage" style="background-image:url('icons/new-shapefile.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-spatialite-layer" title="Nova camada SpatiaLite" style="background-image:url('icons/new-spatialite.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-scratch-layer" title="Nova camada temporária" style="background-image:url('icons/new-scratch.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-mesh-layer" title="Nova camada de malha" style="background-image:url('icons/new-mesh-layer.svg')"></button>
+    <button class="tool-btn" id="btn-data-source-mgr" title="Gerenciador de fontes de dados (importar shapefile)" style="background-image:url('icons/data-source-mgr.svg')"></button>
+    <button class="tool-dropdown" title="Mais opções de camada">▾</button>
+    <button class="tool-btn not-implemented" id="btn-add-wms" title="Adicionar camada WMS/WMTS" style="background-image:url('icons/add-wms.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-vtile" title="Adicionar camada de blocos vetoriais" style="background-image:url('icons/add-vector-tile.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="digitizing" style="display:flex;align-items:center;">
+    <button class="tool-btn" id="btn-toggle-edit" disabled title="Alternar modo de edição de atributos" style="background-image:url('icons/toggle-edit.svg')"></button>
+    <button class="tool-btn" id="btn-save-edits-tb" disabled title="Salvar edições na camada" style="background-image:url('icons/save-edits.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-all-edits" title="Edições atuais (todas as camadas)" style="background-image:url('icons/current-edits.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn" id="btn-draw-point" disabled title="Adicionar feição de ponto" style="background-image:url('icons/add-feature-tb.svg')"></button>
+    <button class="tool-btn" id="btn-draw-line" disabled title="Adicionar feição de linha" style="background-image:url('icons/shape-rect.svg')"></button>
+    <button class="tool-btn" id="btn-draw-polygon" disabled title="Adicionar feição de polígono" style="background-image:url('icons/shape-regular-polygon.svg')"></button>
+    <button class="tool-btn" id="btn-add-feature-tb" disabled title="Adicionar registro/feição na camada selecionada" style="background-image:url('icons/add-feature-tb.svg')"></button>
+    <button class="tool-btn" id="btn-toggle-geom-edit" disabled title="Alternar edição de geometria (mover vértices)" style="background-image:url('icons/vertex-tool.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-delete-selected" title="Excluir feições selecionadas" style="background-image:url('icons/delete-selected.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="advdigitizing" style="display:flex;align-items:center;">
+    <button class="tool-label-btn has-icon" id="btn-buffer" disabled title="Criar zona de buffer ao redor da feição selecionada" style="background-image:url('icons/reshape.svg')">Buffer</button>
+    <button class="tool-label-btn has-icon" id="btn-intersect" disabled title="Interseção entre duas camadas" style="background-image:url('icons/merge-features.svg')">Interseção</button>
+    <button class="tool-label-btn has-icon" id="btn-union" disabled title="Unir todas as feições de duas camadas em uma só" style="background-image:url('icons/merge-attrs.svg')">Unir camadas</button>
+    <button class="tool-label-btn has-icon" id="btn-clip" disabled title="Recortar uma camada usando outra como máscara" style="background-image:url('icons/split-features.svg')">Recortar</button>
+    <button class="tool-label-btn has-icon" id="btn-split" disabled title="Dividir uma feição em duas, desenhando uma linha de corte" style="background-image:url('icons/split-parts.svg')">Dividir feição</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="managelayers2" style="display:flex;align-items:center;">
+    <div class="drag-handle"></div>
+    <button class="tool-btn not-implemented" id="btn-add-layer" title="Adicionar camada" style="background-image:url('icons/add-layer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-raster" title="Adicionar camada raster" style="background-image:url('icons/add-raster.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-mesh" title="Adicionar camada de malha" style="background-image:url('icons/add-mesh.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-delimited-text" title="Adicionar camada de texto delimitado" style="background-image:url('icons/add-delimited-text.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-pointcloud" title="Adicionar camada de nuvem de pontos" style="background-image:url('icons/add-pointcloud.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="createlayer" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-new-postgis" title="Nova camada PostGIS" style="background-image:url('icons/new-postgis.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-add-xyz" title="Adicionar camada XYZ/WMTS" style="background-image:url('icons/add-xyz.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-virtual" title="Nova camada virtual" style="background-image:url('icons/new-virtual.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="labels" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-toggle-labels" title="Ativar/desativar rotulagem e diagramas" style="background-image:url('icons/toggle-labels.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-diagrams" title="Diagramas" style="background-image:url('icons/diagrams.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn not-implemented" id="btn-pin-labels" title="Fixar rótulos" style="background-image:url('icons/pin-labels.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-show-hide-labels" title="Mostrar/ocultar rótulos e diagramas selecionados" style="background-image:url('icons/show-hide-labels.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn not-implemented" id="btn-move-label" title="Mover rótulo, diagrama ou callout" style="background-image:url('icons/move-label.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-rotate-label" title="Girar rótulo" style="background-image:url('icons/rotate-label.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-change-label" title="Alterar propriedades do rótulo" style="background-image:url('icons/change-label.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="advdigitizing2" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-simplify" title="Simplificar feição" style="background-image:url('icons/simplify.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-vertex-tool" title="Ferramenta de vértices" style="background-image:url('icons/vertex-tool.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-move-feature" title="Mover feição" style="background-image:url('icons/move-feature.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-ring" title="Adicionar anel" style="background-image:url('icons/add-ring.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-fill-ring" title="Preencher anel" style="background-image:url('icons/fill-ring.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-delete-ring" title="Excluir anel" style="background-image:url('icons/delete-ring.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-part" title="Adicionar parte" style="background-image:url('icons/add-part.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-delete-part" title="Excluir parte" style="background-image:url('icons/delete-part.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-reshape" title="Remodelar feição" style="background-image:url('icons/reshape.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-offset-curve" title="Deslocar curva" style="background-image:url('icons/offset-curve.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-rotate-feature" title="Girar feição" style="background-image:url('icons/rotate-feature.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-scale-feature" title="Escalar feição" style="background-image:url('icons/scale-feature.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-split-features2" title="Dividir feições" style="background-image:url('icons/split-features.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-split-parts2" title="Dividir partes" style="background-image:url('icons/split-parts.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-merge-features2" title="Mesclar feições" style="background-image:url('icons/merge-features.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-merge-attrs2" title="Mesclar atributos de feições" style="background-image:url('icons/merge-attrs.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-rotate-point-symbols" title="Girar símbolos de ponto" style="background-image:url('icons/rotate-point-symbols.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="shapedigitizing" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-shape-rect" title="Retângulo" style="background-image:url('icons/shape-rect.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-shape-circle" title="Círculo" style="background-image:url('icons/shape-circle.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-shape-ellipse" title="Elipse" style="background-image:url('icons/shape-ellipse.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-shape-regular" title="Polígono regular" style="background-image:url('icons/shape-regular-polygon.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="dbpython" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-db-toolbar" title="Barra de ferramentas de banco de dados" style="background-image:url('icons/db-toolbar.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-python-console" title="Console Python" style="background-image:url('icons/python-console.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn not-implemented" id="btn-georeferencer" title="Georreferenciador" style="background-image:url('icons/georeferencer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-coord-capture" title="Capturar coordenadas" style="background-image:url('icons/coord-capture.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-north-arrow" title="Seta norte" style="background-image:url('icons/north-arrow.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group" data-toolbar="gps2" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-gps-track" title="Ativar rastreamento GPS" style="background-image:url('icons/gps-track.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-gps-panel" title="Painel GPS" style="background-image:url('icons/gps-panel.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <span id="autosave-indicator">💾 Salvo automaticamente</span>
+    <button class="tool-label-btn" id="btn-clear-autosave" title="Apagar dados salvos automaticamente neste navegador">🗑 Limpar dados salvos</button>
+  </div>
+
+  <div id="body">
+    <div id="layers-panel">
+      <div class="panel-header">Camadas</div>
+      <div id="layer-list">
+        <div class="layers-empty">Nenhuma camada carregada.<br>Use "Importar SHP" para começar.</div>
+      </div>
+    </div>
+
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div id="measure-result"></div>
+    </div>
+  </div>
+
+  <div id="modal-overlay">
+    <div id="modal-box">
+      <div id="modal-title"></div>
+      <div id="modal-body"></div>
+      <div id="modal-actions">
+        <button id="modal-cancel">Cancelar</button>
+        <button class="primary" id="modal-confirm">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="attr-panel" class="collapsed">
+    <div id="attr-header">
+      <span class="title">Tabela de atributos</span>
+      <div id="attr-header-right">
+        <span id="unsaved-badge">edições não salvas</span>
+        <span id="attr-toggle">▲ expandir</span>
+      </div>
+    </div>
+    <div id="attr-toolbar">
+      <button class="tool-label-btn has-icon" id="btn-toggle-edit-2" title="Alternar modo de edição" style="background-image:url('icons/toggle-edit.svg')">✎ Alternar edição</button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-label-btn has-icon" id="btn-add-field" disabled title="Adicionar novo campo (coluna)" style="background-image:url('icons/field-calc.svg')">➕ Campo</button>
+      <button class="tool-label-btn has-icon" id="btn-add-feature" disabled title="Adicionar nova feição (linha)" style="background-image:url('icons/add-feature-tb.svg')">➕ Feição</button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-label-btn has-icon" id="btn-save-edits" disabled title="Salvar edições na camada" style="background-image:url('icons/save-edits.svg')">💾 Salvar edições</button>
+    </div>
+    <div id="attr-table-wrap">
+      <div id="attr-empty">Selecione uma camada para ver seus atributos.</div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <span id="coord-display">Lat: —, Lon: —</span>
+    <div class="sep"></div>
+    <span id="scale-display">Feições: 0</span>
+    <div class="sep"></div>
+    <span id="crs-display">CRS: WGS 84 (EPSG:4326)</span>
+  </div>
+
+  <div id="toast"></div>
+
+  <!-- Menu de contexto: botão direito em qualquer barra de ferramentas ou no menubar -->
+  <div id="tb-context-menu"></div>
+</div>
+
+<script>
+  // ---------------- Estado ----------------
+  const state = {
+    map: null,
+    layers: [],       // { id, name, geojson, leafletLayer, color, visible, editedRows:Set, dirty:bool }
+    selectedLayerId: null,
+    nextId: 1,
+    editMode: false,
+  };
+
+  const PALETTE = ['#3388cc', '#e6194b', '#3cb44b', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c'];
+
+  function toast(msg, ms = 2600) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove('show'), ms);
+  }
+
+  // ---------------- Ferramentas ainda não implementadas ----------------
+  // Estes botões existem no protótipo (com o ícone e o título correspondentes
+  // à ferramenta real do QGIS) para que a função seja plugada aqui no futuro.
+  // A borda vermelha (classe .not-implemented) e este toast deixam claro que,
+  // por enquanto, clicar neles não executa nenhuma ação real.
+  document.querySelectorAll('.tool-btn.not-implemented, .tool-label-btn.not-implemented').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const label = (btn.title || btn.textContent || 'Esta ferramenta').trim();
+      toast(`"${label}" ainda não foi implementada nesta versão do protótipo.`, 3200);
+    });
+  });
+
+  // ---------------- Mapa ----------------
+  state.map = L.map('map', { zoomControl: true }).setView([-9.7, -36.0], 7); // Alagoas como default
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  }).addTo(state.map);
+
+  state.map.on('mousemove', (e) => {
+    document.getElementById('coord-display').textContent =
+      `Lat: ${e.latlng.lat.toFixed(5)}, Lon: ${e.latlng.lng.toFixed(5)}`;
+  });
+
+  // ---------------- Botões da toolbar (estilo QGIS) ----------------
+  // Zoom in/out (equivalentes aos controles + / - do Leaflet, só que na toolbar).
+  document.getElementById('btn-zoom-in').addEventListener('click', () => state.map.zoomIn());
+  document.getElementById('btn-zoom-out').addEventListener('click', () => state.map.zoomOut());
+
+  // Abrir tabela de atributos: expande o painel de atributos (mesmo painel do botão ▲/▼).
+  document.getElementById('btn-open-attr').addEventListener('click', () => {
+    document.getElementById('attr-panel').classList.remove('collapsed');
+    document.getElementById('attr-toggle').textContent = '▼ recolher';
+  });
+
+  // Gerenciador de fontes de dados: mesmo fluxo do botão de importar shapefile.
+  document.getElementById('btn-data-source-mgr').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+
+  // Os botões duplicados na toolbar principal (💾 Salvar edições / ➕ Feição) espelham
+  // os originais do painel de atributos, mantendo um único estado (o painel de atributos
+  // continua sendo a fonte da verdade sobre qual camada está selecionada).
+  document.getElementById('btn-save-edits-tb').addEventListener('click', () => {
+    document.getElementById('btn-save-edits').click();
+  });
+  document.getElementById('btn-add-feature-tb').addEventListener('click', () => {
+    document.getElementById('btn-add-feature').click();
+  });
+
+  // Grupo do Leaflet.draw usado só como "quadro" de edição/desenho ativo:
+  // quando entramos em modo de edição de geometria ou desenho, colocamos
+  // as feições da camada selecionada aqui, editamos, e devolvemos ao geojson
+  // da camada ao sair do modo.
+  const drawGroup = new L.FeatureGroup().addTo(state.map);
+  let leafletDrawControl = null;
+  state.geomEditMode = false;
+  state.drawTool = null; // 'point' | 'polygon' | 'line' | null
+  state.measureTool = { active: false, points: [], layer: null };
+
+  // ---------------- Persistência local (autosave) ----------------
+  const AUTOSAVE_KEY = 'qgis-web-prototipo:projeto';
+  let autosaveTimer = null;
+
+  function serializeProject() {
+    return {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      layers: state.layers.map(l => ({
+        name: l.name,
+        color: l.color,
+        visible: l.visible,
+        geojson: l.geojson,
+      })),
+      selectedLayerId: state.selectedLayerId,
+      nextId: state.nextId,
+    };
+  }
+
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeProject()));
+        flashAutosaveIndicator();
+      } catch (err) {
+        console.error('Falha ao salvar automaticamente:', err);
+        document.getElementById('autosave-indicator').textContent = '⚠ Falha ao salvar (espaço do navegador cheio?)';
+      }
+    }, 800); // debounce: espera a pessoa parar de editar antes de gravar
+    pushHistorySoon();
+  }
+
+  // ---------------- Histórico (Desfazer / Refazer) ----------------
+  // Guarda snapshots profundos e serializáveis do projeto (mesmo formato do autosave,
+  // menos o timestamp). Cada mudança de dados agenda uma captura; como várias mudanças
+  // pequenas costumam vir juntas (ex.: editar célula = markDirty + scheduleAutosave),
+  // usamos um debounce curto para não empilhar um snapshot por tecla digitada.
+  const history = { stack: [], index: -1, max: 60 };
+  let historyTimer = null;
+  let restoringHistory = false; // true enquanto aplicamos um snapshot, para não gravar histórico disso
+
+  function snapshotProject() {
+    // Deep clone via JSON: geojson e o resto do estado salvo são sempre dados simples.
+    return JSON.parse(JSON.stringify({
+      layers: state.layers.map(l => ({
+        name: l.name, color: l.color, visible: l.visible, geojson: l.geojson,
+      })),
+      selectedLayerId: state.selectedLayerId,
+      nextId: state.nextId,
+    }));
+  }
+
+  function pushHistorySoon() {
+    if (restoringHistory) return;
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(pushHistoryNow, 350);
+  }
+
+  function pushHistoryNow() {
+    if (restoringHistory) return;
+    const snap = snapshotProject();
+    // Se estávamos no meio da pilha (depois de desfazer), o novo estado descarta o "futuro".
+    history.stack = history.stack.slice(0, history.index + 1);
+    history.stack.push(snap);
+    if (history.stack.length > history.max) history.stack.shift();
+    history.index = history.stack.length - 1;
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    document.getElementById('btn-undo').disabled = history.index <= 0;
+    document.getElementById('btn-redo').disabled = history.index >= history.stack.length - 1;
+  }
+
+  function rebuildFromSnapshot(snap) {
+    restoringHistory = true;
+    try {
+      // Remove todas as camadas atuais do mapa e da lista.
+      state.layers.forEach(l => { try { state.map.removeLayer(l.leafletLayer); } catch (e) {} });
+      state.layers = [];
+      state.selectedLayerId = null;
+
+      snap.layers.forEach(l => {
+        addLayer(l.name, l.geojson, { color: l.color, visible: l.visible, skipAutosave: true, skipFit: true });
+      });
+      state.nextId = snap.nextId;
+      state.selectedLayerId = snap.selectedLayerId;
+      renderLayerList();
+      renderAttributeTable();
+
+      const btnExport = document.getElementById('btn-export');
+      const btnZoom = document.getElementById('btn-zoom-extent');
+      const hasLayers = state.layers.length > 0;
+      btnExport.disabled = !hasLayers;
+      btnZoom.disabled = !hasLayers;
+      document.getElementById('btn-toggle-edit').disabled = !hasLayers;
+      document.getElementById('btn-toggle-geom-edit').disabled = !hasLayers;
+      document.getElementById('btn-draw-point').disabled = !hasLayers;
+      document.getElementById('btn-draw-polygon').disabled = !hasLayers;
+      document.getElementById('btn-draw-line').disabled = !hasLayers;
+      document.getElementById('btn-measure').disabled = !hasLayers;
+      document.getElementById('btn-buffer').disabled = !hasLayers;
+      document.getElementById('btn-split').disabled = !hasLayers;
+    } finally {
+      restoringHistory = false;
+    }
+    try {
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeProject()));
+      flashAutosaveIndicator();
+    } catch (err) { /* ignora falha de gravação aqui; próxima scheduleAutosave tenta de novo */ }
+  }
+
+  function undo() {
+    if (history.index <= 0) return;
+    clearTimeout(historyTimer);
+    history.index--;
+    rebuildFromSnapshot(history.stack[history.index]);
+    updateUndoRedoButtons();
+    toast('Ação desfeita.');
+  }
+
+  function redo() {
+    if (history.index >= history.stack.length - 1) return;
+    clearTimeout(historyTimer);
+    history.index++;
+    rebuildFromSnapshot(history.stack[history.index]);
+    updateUndoRedoButtons();
+    toast('Ação refeita.');
+  }
+
+  document.getElementById('btn-undo').addEventListener('click', undo);
+  document.getElementById('btn-redo').addEventListener('click', redo);
+
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    const ctrlOrCmd = e.ctrlKey || e.metaKey;
+    if (!ctrlOrCmd) return;
+    if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+  });
+
+  function flashAutosaveIndicator() {
+    const el = document.getElementById('autosave-indicator');
+    el.textContent = '💾 Salvo automaticamente';
+  }
+
+  function loadAutosavedProject() {
+    let raw;
+    try {
+      raw = localStorage.getItem(AUTOSAVE_KEY);
+    } catch (err) {
+      return; // localStorage indisponível (modo privado restrito, etc.)
+    }
+    if (!raw) return;
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (err) {
+      console.error('Autosave corrompido, ignorando:', err);
+      return;
+    }
+    if (!data.layers || data.layers.length === 0) return;
+
+    data.layers.forEach(l => {
+      addLayer(l.name, l.geojson, { color: l.color, visible: l.visible, skipAutosave: true, skipFit: true });
+    });
+    if (typeof data.nextId === 'number') state.nextId = Math.max(state.nextId, data.nextId);
+    if (data.selectedLayerId != null && state.layers.some(l => l.id === data.selectedLayerId)) {
+      selectLayer(data.selectedLayerId);
+    }
+
+    // Um único zoom para a extensão de todas as camadas restauradas, em vez de
+    // um fitBounds por camada (o que deixaria o mapa "pulando" durante a restauração).
+    try {
+      const group = new L.FeatureGroup(state.layers.map(l => l.leafletLayer));
+      state.map.fitBounds(group.getBounds(), { padding: [20, 20] });
+    } catch (e) { /* nenhuma geometria válida para enquadrar */ }
+
+    toast(`Projeto restaurado automaticamente (${data.layers.length} camada(s), salvo em ${new Date(data.savedAt).toLocaleString('pt-BR')}).`, 4000);
+  }
+
+  document.getElementById('btn-clear-autosave').addEventListener('click', () => {
+    if (!confirm('Isso apaga os dados salvos automaticamente neste navegador (não afeta arquivos já exportados). Continuar?')) return;
+    localStorage.removeItem(AUTOSAVE_KEY);
+    toast('Dados salvos automaticamente foram apagados.');
+  });
+
+  // ---------------- Import ----------------
+  document.getElementById('btn-import').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+
+  document.getElementById('file-input').addEventListener('change', async (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      toast('Envie um .zip contendo .shp, .shx, .dbf (e .prj, se houver).');
+      return;
+    }
+    toast('Lendo shapefile...');
+    try {
+      const buffer = await file.arrayBuffer();
+      const geojson = await shp(buffer);
+      const gj = Array.isArray(geojson) ? geojson[0] : geojson; // shpjs pode retornar array se houver múltiplos shp no zip
+      addLayer(file.name.replace(/\.zip$/i, ''), gj);
+      toast(`Camada "${file.name}" importada com ${gj.features.length} feições.`);
+    } catch (err) {
+      console.error(err);
+      toast('Erro ao ler o shapefile: ' + err.message, 4000);
+    }
+    ev.target.value = '';
+  });
+
+  function addLayer(name, geojson, restoreOptions = {}) {
+    const color = restoreOptions.color || PALETTE[state.layers.length % PALETTE.length];
+    const id = state.nextId++;
+
+    const leafletLayer = L.geoJSON(geojson, {
+      style: () => ({ color, weight: 2, fillOpacity: 0.35, fillColor: color }),
+      pointToLayer: (feature, latlng) =>
+        L.circleMarker(latlng, { radius: 5, color, weight: 2, fillOpacity: 0.6, fillColor: color }),
+      onEachFeature: (feature, layer) => {
+        layer.on('click', () => selectFeatureRow(id, feature));
+      },
+    }).addTo(state.map);
+
+    const layerObj = { id, name, geojson, leafletLayer, color, visible: true, editedRows: new Set(), dirty: false };
+    state.layers.push(layerObj);
+    renderLayerList();
+    selectLayer(id);
+
+    if (!restoreOptions.skipFit) {
+      try {
+        state.map.fitBounds(leafletLayer.getBounds(), { padding: [20, 20] });
+      } catch (e) { /* geometria vazia ou inválida — ignora fit */ }
+    }
+
+    if (restoreOptions.visible === false) {
+      toggleVisibility(id, false);
+      renderLayerList();
+    }
+
+    document.getElementById('btn-export').disabled = false;
+    document.getElementById('btn-zoom-extent').disabled = false;
+    document.getElementById('btn-toggle-edit').disabled = false;
+    document.getElementById('btn-toggle-geom-edit').disabled = false;
+    document.getElementById('btn-draw-point').disabled = false;
+    document.getElementById('btn-draw-polygon').disabled = false;
+    document.getElementById('btn-draw-line').disabled = false;
+    document.getElementById('btn-measure').disabled = false;
+    document.getElementById('btn-buffer').disabled = false;
+    document.getElementById('btn-intersect').disabled = state.layers.length < 2;
+    document.getElementById('btn-union').disabled = state.layers.length < 2;
+    document.getElementById('btn-clip').disabled = state.layers.length < 2;
+    document.getElementById('btn-split').disabled = false;
+
+    if (!restoreOptions.skipAutosave) scheduleAutosave();
+  }
+
+  function renderLayerList() {
+    const listEl = document.getElementById('layer-list');
+    if (state.layers.length === 0) {
+      listEl.innerHTML = '<div class="layers-empty">Nenhuma camada carregada.<br>Use "Importar SHP" para começar.</div>';
+      return;
+    }
+    listEl.innerHTML = '';
+    // mais recente no topo, como no QGIS
+    [...state.layers].reverse().forEach(l => {
+      const row = document.createElement('div');
+      row.className = 'layer-row' + (l.id === state.selectedLayerId ? ' selected' : '');
+      row.innerHTML = `
+        <input type="checkbox" ${l.visible ? 'checked' : ''} data-id="${l.id}" class="vis-toggle">
+        <span class="layer-swatch" style="background:${l.color}"></span>
+        <span class="layer-name" title="${l.name}">${l.name}</span>
+        <span class="layer-count">${l.geojson.features.length}</span>
+      `;
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('vis-toggle')) return;
+        selectLayer(l.id);
+      });
+      row.querySelector('.vis-toggle').addEventListener('change', (e) => {
+        toggleVisibility(l.id, e.target.checked);
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  function toggleVisibility(id, visible) {
+    const l = state.layers.find(x => x.id === id);
+    if (!l) return;
+    l.visible = visible;
+    if (visible) l.leafletLayer.addTo(state.map);
+    else state.map.removeLayer(l.leafletLayer);
+    scheduleAutosave();
+  }
+
+  function selectLayer(id) {
+    state.selectedLayerId = id;
+    renderLayerList();
+    renderAttributeTable();
+  }
+
+  function selectFeatureRow(layerId, feature) {
+    selectLayer(layerId);
+    setTimeout(() => {
+      const idx = state.layers.find(l => l.id === layerId).geojson.features.indexOf(feature);
+      const row = document.querySelector(`#attr-table tr[data-idx="${idx}"]`);
+      if (row) {
+        document.querySelectorAll('#attr-table tr').forEach(r => r.classList.remove('row-selected'));
+        row.classList.add('row-selected');
+        row.scrollIntoView({ block: 'nearest' });
+      }
+      document.getElementById('attr-panel').classList.remove('collapsed');
+      document.getElementById('attr-toggle').textContent = '▼ recolher';
+    }, 0);
+  }
+
+  function allPropKeys(layer) {
+    // Une as chaves de todas as feições, preservando a ordem de primeira aparição
+    // (necessário porque uma feição nova pode ter campos vazios, e um campo pode
+    // ter sido adicionado depois que algumas feições já existiam).
+    const keys = [];
+    layer.geojson.features.forEach(f => {
+      Object.keys(f.properties || {}).forEach(k => { if (!keys.includes(k)) keys.push(k); });
+    });
+    return keys;
+  }
+
+  function markDirty(layer, rowIdx) {
+    layer.dirty = true;
+    if (rowIdx !== undefined) layer.editedRows.add(rowIdx);
+    updateUnsavedBadge();
+    document.getElementById('btn-save-edits').disabled = false;
+    document.getElementById('btn-save-edits-tb').disabled = false;
+    scheduleAutosave();
+  }
+
+  function updateUnsavedBadge() {
+    const anyDirty = state.layers.some(l => l.dirty);
+    document.getElementById('unsaved-badge').classList.toggle('show', anyDirty);
+  }
+
+  function renderAttributeTable() {
+    const wrap = document.getElementById('attr-table-wrap');
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+
+    const addFieldBtn = document.getElementById('btn-add-field');
+    const addFeatureBtn = document.getElementById('btn-add-feature');
+    const saveBtn = document.getElementById('btn-save-edits');
+
+    if (!layer) {
+      wrap.innerHTML = '<div id="attr-empty">Selecione uma camada para ver seus atributos.</div>';
+      document.getElementById('scale-display').textContent = 'Feições: 0';
+      addFieldBtn.disabled = true;
+      addFeatureBtn.disabled = true;
+      saveBtn.disabled = true;
+      document.getElementById('btn-add-feature-tb').disabled = true;
+      document.getElementById('btn-save-edits-tb').disabled = true;
+      return;
+    }
+
+    addFieldBtn.disabled = !state.editMode;
+    addFeatureBtn.disabled = !state.editMode;
+    saveBtn.disabled = !layer.dirty;
+    document.getElementById('btn-add-feature-tb').disabled = !state.editMode;
+    document.getElementById('btn-save-edits-tb').disabled = !layer.dirty;
+
+    const features = layer.geojson.features;
+    if (features.length === 0) {
+      wrap.innerHTML = '<div id="attr-empty">Esta camada ainda não tem feições. Use "➕ Feição" no modo de edição.</div>';
+      document.getElementById('scale-display').textContent = 'Feições: 0';
+      return;
+    }
+
+    const propKeys = allPropKeys(layer);
+    let html = '<table id="attr-table"><thead><tr>';
+    propKeys.forEach(k => {
+      html += `<th><span class="th-inner"><span>${k}</span>`;
+      if (state.editMode) html += `<button class="del-field-btn" data-field="${k}" title="Remover campo">✕</button>`;
+      html += `</span></th>`;
+    });
+    if (state.editMode) html += '<th style="width:26px"></th>';
+    html += '</tr></thead><tbody>';
+    features.forEach((f, idx) => {
+      const editedClass = layer.editedRows.has(idx) ? ' row-edited' : '';
+      html += `<tr data-idx="${idx}" class="${editedClass}">`;
+      propKeys.forEach(k => {
+        const val = f.properties[k] ?? '';
+        if (state.editMode) {
+          html += `<td data-field="${k}"><div class="cell-view">${val}</div></td>`;
+        } else {
+          html += `<td><div class="cell-view">${val}</div></td>`;
+        }
+      });
+      if (state.editMode) {
+        html += `<td class="del-cell"><button data-idx="${idx}" class="del-row-btn" title="Excluir feição">🗑</button></td>`;
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    document.getElementById('scale-display').textContent = `Feições: ${features.length}`;
+
+    // seleção de linha
+    wrap.querySelectorAll('tr[data-idx]').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.cell-edit') || e.target.closest('.del-row-btn')) return;
+        wrap.querySelectorAll('tr').forEach(r => r.classList.remove('row-selected'));
+        row.classList.add('row-selected');
+      });
+    });
+
+    if (!state.editMode) return; // nada mais a ligar fora do modo de edição
+
+    // edição de célula (duplo clique)
+    wrap.querySelectorAll('td[data-field] .cell-view').forEach(cellView => {
+      cellView.addEventListener('dblclick', () => startCellEdit(cellView, layer));
+    });
+
+    // remover campo
+    wrap.querySelectorAll('.del-field-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const field = btn.dataset.field;
+        if (!confirm(`Remover o campo "${field}" de todas as feições desta camada?`)) return;
+        layer.geojson.features.forEach(f => { delete f.properties[field]; });
+        markDirty(layer);
+        renderAttributeTable();
+      });
+    });
+
+    // remover feição
+    wrap.querySelectorAll('.del-row-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.dataset.idx);
+        if (!confirm('Excluir esta feição?')) return;
+        layer.geojson.features.splice(idx, 1);
+        layer.leafletLayer.clearLayers();
+        layer.leafletLayer.addData(layer.geojson);
+        layer.editedRows = new Set(); // índices mudaram, evita marcação incorreta
+        markDirty(layer);
+        renderAttributeTable();
+      });
+    });
+  }
+
+  function startCellEdit(cellView, layer) {
+    const td = cellView.closest('td');
+    const tr = cellView.closest('tr');
+    const idx = Number(tr.dataset.idx);
+    const field = td.dataset.field;
+    const currentVal = layer.geojson.features[idx].properties[field] ?? '';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cell-edit';
+    input.value = currentVal;
+    td.innerHTML = '';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const newVal = input.value;
+      if (String(currentVal) !== newVal) {
+        layer.geojson.features[idx].properties[field] = newVal;
+        tr.classList.add('row-edited');
+        markDirty(layer, idx);
+      }
+      td.innerHTML = `<div class="cell-view">${layer.geojson.features[idx].properties[field] ?? ''}</div>`;
+      td.querySelector('.cell-view').addEventListener('dblclick', () => startCellEdit(td.querySelector('.cell-view'), layer));
+    };
+
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') { input.value = currentVal; input.blur(); }
+    });
+  }
+
+  function addFieldToLayer(layer) {
+    const name = prompt('Nome do novo campo:');
+    if (!name) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const existing = allPropKeys(layer);
+    if (existing.includes(trimmed)) { toast(`O campo "${trimmed}" já existe.`); return; }
+    layer.geojson.features.forEach(f => { f.properties[trimmed] = ''; });
+    markDirty(layer);
+    renderAttributeTable();
+  }
+
+  function addFeatureToLayer(layer) {
+    const propKeys = allPropKeys(layer);
+    const emptyProps = {};
+    propKeys.forEach(k => emptyProps[k] = '');
+    // Sem geometria própria ainda (edição de geometria vem na próxima fase) —
+    // usa um ponto no centro da vista atual do mapa como placeholder editável.
+    const center = state.map.getCenter();
+    const newFeature = {
+      type: 'Feature',
+      properties: emptyProps,
+      geometry: { type: 'Point', coordinates: [center.lng, center.lat] },
+    };
+    layer.geojson.features.push(newFeature);
+    layer.leafletLayer.clearLayers();
+    layer.leafletLayer.addData(layer.geojson);
+    markDirty(layer, layer.geojson.features.length - 1);
+    renderAttributeTable();
+    toast('Feição adicionada no centro do mapa (geometria editável na próxima fase).');
+  }
+
+  // ---------------- Painel de atributos: expandir/recolher ----------------
+  document.getElementById('attr-header').addEventListener('click', () => {
+    const panel = document.getElementById('attr-panel');
+    const collapsed = panel.classList.toggle('collapsed');
+    document.getElementById('attr-toggle').textContent = collapsed ? '▲ expandir' : '▼ recolher';
+  });
+
+  // ---------------- Zoom para extensão ----------------
+  document.getElementById('btn-zoom-extent').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId) || state.layers[state.layers.length - 1];
+    if (layer) state.map.fitBounds(layer.leafletLayer.getBounds(), { padding: [20, 20] });
+  });
+
+  // ---------------- Export ----------------
+  document.getElementById('btn-export').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId) || state.layers[state.layers.length - 1];
+    if (!layer) { toast('Nenhuma camada para exportar.'); return; }
+    try {
+      const options = {
+        folder: layer.name,
+        filename: layer.name,
+        outputType: 'blob',
+        compression: 'STORE',
+      };
+      const blob = shpwrite.zip(layer.geojson, options);
+      Promise.resolve(blob).then((zipBlob) => {
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${layer.name}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast(`Camada "${layer.name}" exportada como shapefile (.zip).`);
+      });
+    } catch (err) {
+      console.error(err);
+      toast('Erro ao exportar: ' + err.message, 4000);
+    }
+  });
+
+  // ---------------- Modo de edição ----------------
+  function setEditMode(on) {
+    state.editMode = on;
+    document.getElementById('btn-toggle-edit').classList.toggle('active', on);
+    document.getElementById('btn-toggle-edit-2').classList.toggle('active', on);
+    document.getElementById('btn-toggle-edit-2').textContent = on ? '✓ Editando' : '✎ Alternar edição';
+    renderAttributeTable();
+    if (on) {
+      document.getElementById('attr-panel').classList.remove('collapsed');
+      document.getElementById('attr-toggle').textContent = '▼ recolher';
+    }
+  }
+  document.getElementById('btn-toggle-edit').addEventListener('click', () => setEditMode(!state.editMode));
+  document.getElementById('btn-toggle-edit-2').addEventListener('click', () => setEditMode(!state.editMode));
+
+  document.getElementById('btn-add-field').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (layer) addFieldToLayer(layer);
+  });
+  document.getElementById('btn-add-feature').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (layer) addFeatureToLayer(layer);
+  });
+  document.getElementById('btn-save-edits').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) return;
+    layer.dirty = false;
+    layer.editedRows = new Set();
+    updateUnsavedBadge();
+    document.getElementById('btn-save-edits').disabled = true;
+    document.getElementById('btn-save-edits-tb').disabled = true;
+    renderAttributeTable();
+    toast(`Edições da camada "${layer.name}" salvas em memória. Use "Exportar SHP" para gerar o arquivo.`);
+  });
+
+  // ================= FASE 4 — Edição de geometria =================
+
+  function syncLayerAfterGeometryChange(layer) {
+    // Reconstrói o render normal (fora do modo de edição) a partir do geojson atualizado.
+    layer.leafletLayer.clearLayers();
+    layer.leafletLayer.addData(layer.geojson);
+  }
+
+  function setGeomEditMode(on) {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (on && !layer) { toast('Selecione uma camada primeiro.'); return; }
+
+    state.geomEditMode = on;
+    document.getElementById('btn-toggle-geom-edit').classList.toggle('active', on);
+
+    if (on) {
+      // Move as feições da camada selecionada para o grupo editável.
+      state.map.removeLayer(layer.leafletLayer);
+      drawGroup.clearLayers();
+      L.geoJSON(layer.geojson, {
+        style: () => ({ color: layer.color, weight: 2, fillOpacity: 0.35, fillColor: layer.color }),
+        pointToLayer: (feature, latlng) =>
+          L.circleMarker(latlng, { radius: 5, color: layer.color, weight: 2, fillOpacity: 0.6, fillColor: layer.color }),
+      }).eachLayer(l => drawGroup.addLayer(l));
+
+      leafletDrawControl = new L.EditToolbar.Edit(state.map, {
+        featureGroup: drawGroup,
+      });
+      leafletDrawControl.enable();
+
+      toast('Modo de edição de geometria ativo: arraste os vértices, depois clique em ▤ de novo para sair e salvar.');
+    } else {
+      if (leafletDrawControl) { leafletDrawControl.disable(); leafletDrawControl = null; }
+
+      // Reconstrói o geojson a partir das camadas editadas no drawGroup.
+      const editedFeatures = [];
+      let i = 0;
+      drawGroup.eachLayer(l => {
+        const gj = l.toGeoJSON();
+        const originalProps = layer.geojson.features[i] ? layer.geojson.features[i].properties : {};
+        gj.properties = originalProps;
+        editedFeatures.push(gj);
+        i++;
+      });
+      layer.geojson.features = editedFeatures;
+      drawGroup.clearLayers();
+      syncLayerAfterGeometryChange(layer);
+      layer.leafletLayer.addTo(state.map);
+      markDirty(layer);
+      toast(`Geometria da camada "${layer.name}" atualizada. Use "💾 Exportar SHP" para salvar em arquivo.`);
+    }
+  }
+  document.getElementById('btn-toggle-geom-edit').addEventListener('click', () => setGeomEditMode(!state.geomEditMode));
+
+  // ---------- Desenhar nova feição (ponto / polígono / linha) ----------
+  let activeDrawHandler = null;
+
+  function stopActiveDraw() {
+    if (activeDrawHandler) { activeDrawHandler.disable(); activeDrawHandler = null; }
+    ['btn-draw-point', 'btn-draw-polygon', 'btn-draw-line'].forEach(id =>
+      document.getElementById(id).classList.remove('active'));
+  }
+
+  // ---------- Medir distância (declarado aqui pois o handler CREATED abaixo o utiliza) ----------
+  let measureHandler = null;
+
+  function stopMeasure() {
+    if (measureHandler) { measureHandler.disable(); measureHandler = null; }
+    document.getElementById('btn-measure').classList.remove('active');
+  }
+
+  function startDraw(kind, btnId) {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione uma camada para adicionar a feição.'); return; }
+
+    const wasActive = document.getElementById(btnId).classList.contains('active');
+    stopActiveDraw();
+    if (wasActive) return; // clicar de novo no botão ativo só desliga
+
+    document.getElementById(btnId).classList.add('active');
+
+    const handlerMap = {
+      point: () => new L.Draw.Marker(state.map),
+      polygon: () => new L.Draw.Polygon(state.map, { shapeOptions: { color: layer.color } }),
+      line: () => new L.Draw.Polyline(state.map, { shapeOptions: { color: layer.color } }),
+    };
+    activeDrawHandler = handlerMap[kind]();
+    activeDrawHandler.enable();
+  }
+
+  document.getElementById('btn-draw-point').addEventListener('click', () => startDraw('point', 'btn-draw-point'));
+  document.getElementById('btn-draw-polygon').addEventListener('click', () => startDraw('polygon', 'btn-draw-polygon'));
+  document.getElementById('btn-draw-line').addEventListener('click', () => startDraw('line', 'btn-draw-line'));
+
+  state.map.on(L.Draw.Event.CREATED, (e) => {
+    // Um único handler para o evento de "desenho concluído", que se comporta
+    // diferente conforme o que está ativo: medição, split, ou desenho de nova feição.
+    const isMeasuring = document.getElementById('btn-measure').classList.contains('active');
+    const isSplitting = document.getElementById('btn-split').classList.contains('active');
+
+    if (isSplitting) return; // o handler de split (mais abaixo) cuida deste evento
+
+    if (isMeasuring) {
+      const latlngs = e.layer.getLatLngs();
+      const coords = latlngs.map(p => [p.lng, p.lat]);
+      const line = turf.lineString(coords);
+      const lengthKm = turf.length(line, { units: 'kilometers' });
+      document.getElementById('measure-result').classList.add('show');
+      document.getElementById('measure-result').innerHTML =
+        `<strong>Distância medida:</strong> ${lengthKm < 1 ? (lengthKm * 1000).toFixed(1) + ' m' : lengthKm.toFixed(3) + ' km'}`;
+      stopMeasure();
+      return;
+    }
+
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    stopActiveDraw();
+    if (!layer) return;
+
+    const gj = e.layer.toGeoJSON();
+    const propKeys = allPropKeys(layer);
+    const emptyProps = {};
+    propKeys.forEach(k => emptyProps[k] = '');
+    gj.properties = emptyProps;
+
+    layer.geojson.features.push(gj);
+    syncLayerAfterGeometryChange(layer);
+    markDirty(layer, layer.geojson.features.length - 1);
+    renderAttributeTable();
+    toast('Feição desenhada e adicionada à camada. Preencha os atributos na tabela, se precisar.');
+  });
+
+  document.getElementById('btn-measure').addEventListener('click', () => {
+    const wasActive = document.getElementById('btn-measure').classList.contains('active');
+    stopMeasure();
+    stopActiveDraw();
+    if (wasActive) {
+      document.getElementById('measure-result').classList.remove('show');
+      return;
+    }
+    document.getElementById('btn-measure').classList.add('active');
+    measureHandler = new L.Draw.Polyline(state.map, { shapeOptions: { color: '#e6194b', dashArray: '6,4' } });
+    measureHandler.enable();
+    toast('Clique pontos no mapa para medir. Duplo clique para terminar.');
+  });
+
+  // ---------- Buffer ----------
+  function openModal(title, bodyHtml, onConfirm) {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').innerHTML = bodyHtml;
+    document.getElementById('modal-overlay').classList.add('show');
+    const confirmBtn = document.getElementById('modal-confirm');
+    const cancelBtn = document.getElementById('modal-cancel');
+    const close = () => document.getElementById('modal-overlay').classList.remove('show');
+    const onConfirmWrap = () => { onConfirm(); close(); cleanup(); };
+    const onCancelWrap = () => { close(); cleanup(); };
+    function cleanup() {
+      confirmBtn.removeEventListener('click', onConfirmWrap);
+      cancelBtn.removeEventListener('click', onCancelWrap);
+    }
+    confirmBtn.addEventListener('click', onConfirmWrap);
+    cancelBtn.addEventListener('click', onCancelWrap);
+  }
+
+  document.getElementById('btn-buffer').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione uma camada para aplicar o buffer.'); return; }
+
+    const bodyHtml = `
+      <label>Camada de origem
+        <input type="text" value="${layer.name}" disabled>
+      </label>
+      <label>Distância do buffer (metros)
+        <input type="number" id="buffer-dist" value="100" min="1" step="1">
+      </label>
+      <label>Nome da nova camada
+        <input type="text" id="buffer-name" value="${layer.name}_buffer">
+      </label>
+    `;
+    openModal('Criar buffer', bodyHtml, () => {
+      const distMeters = Number(document.getElementById('buffer-dist').value) || 100;
+      const newName = document.getElementById('buffer-name').value || `${layer.name}_buffer`;
+      try {
+        const buffered = turf.buffer(layer.geojson, distMeters / 1000, { units: 'kilometers' });
+        addLayer(newName, buffered);
+        toast(`Camada "${newName}" criada com buffer de ${distMeters} m.`);
+      } catch (err) {
+        console.error(err);
+        toast('Erro ao gerar buffer: ' + err.message, 4000);
+      }
+    });
+  });
+
+  // ---------- Interseção ----------
+  document.getElementById('btn-intersect').addEventListener('click', () => {
+    if (state.layers.length < 2) { toast('É preciso ao menos duas camadas para calcular interseção.'); return; }
+
+    const optionsHtml = state.layers.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+    const bodyHtml = `
+      <label>Camada A
+        <select id="intersect-a">${optionsHtml}</select>
+      </label>
+      <label>Camada B
+        <select id="intersect-b">${optionsHtml}</select>
+      </label>
+      <label>Nome da nova camada
+        <input type="text" id="intersect-name" value="interseccao">
+      </label>
+    `;
+    openModal('Interseção entre camadas', bodyHtml, () => {
+      const idA = Number(document.getElementById('intersect-a').value);
+      const idB = Number(document.getElementById('intersect-b').value);
+      const newName = document.getElementById('intersect-name').value || 'interseccao';
+      if (idA === idB) { toast('Escolha duas camadas diferentes.'); return; }
+
+      const layerA = state.layers.find(l => l.id === idA);
+      const layerB = state.layers.find(l => l.id === idB);
+      try {
+        const resultFeatures = [];
+        layerA.geojson.features.forEach(fa => {
+          layerB.geojson.features.forEach(fb => {
+            try {
+              const inter = turf.intersect(fa, fb);
+              if (inter) {
+                inter.properties = { ...fa.properties, ...fb.properties };
+                resultFeatures.push(inter);
+              }
+            } catch (e) { /* par sem interseção válida — ignora */ }
+          });
+        });
+        if (resultFeatures.length === 0) {
+          toast('Nenhuma interseção encontrada entre essas camadas.');
+          return;
+        }
+        addLayer(newName, { type: 'FeatureCollection', features: resultFeatures });
+        toast(`Camada "${newName}" criada com ${resultFeatures.length} feição(ões) de interseção.`);
+      } catch (err) {
+        console.error(err);
+        toast('Erro ao calcular interseção: ' + err.message, 4000);
+      }
+    });
+  });
+
+  // ---------- Atualiza disponibilidade dos botões que dependem do nº de camadas ----------
+  const originalRenderLayerList = renderLayerList;
+  renderLayerList = function() {
+    originalRenderLayerList();
+    const twoOrMore = state.layers.length >= 2;
+    document.getElementById('btn-intersect').disabled = !twoOrMore;
+    document.getElementById('btn-union').disabled = !twoOrMore;
+    document.getElementById('btn-clip').disabled = !twoOrMore;
+  };
+
+  // ================= FASE 6 — Operações geométricas avançadas =================
+
+  // ---------- Unir camadas ----------
+  document.getElementById('btn-union').addEventListener('click', () => {
+    if (state.layers.length < 2) { toast('É preciso ao menos duas camadas para unir.'); return; }
+    const optionsHtml = state.layers.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+    const bodyHtml = `
+      <label>Camada A
+        <select id="union-a">${optionsHtml}</select>
+      </label>
+      <label>Camada B
+        <select id="union-b">${optionsHtml}</select>
+      </label>
+      <label>Nome da nova camada
+        <input type="text" id="union-name" value="uniao">
+      </label>
+    `;
+    openModal('Unir camadas', bodyHtml, () => {
+      const idA = Number(document.getElementById('union-a').value);
+      const idB = Number(document.getElementById('union-b').value);
+      const newName = document.getElementById('union-name').value || 'uniao';
+      if (idA === idB) { toast('Escolha duas camadas diferentes.'); return; }
+
+      const layerA = state.layers.find(l => l.id === idA);
+      const layerB = state.layers.find(l => l.id === idB);
+      try {
+        // Une par a par: começa com todas as feições de A, e vai fundindo com cada feição de B
+        // que efetivamente tocar alguma delas; feições sem par ficam como estão.
+        let resultFeatures = layerA.geojson.features.map(f => turf.clone(f));
+        layerB.geojson.features.forEach(fb => {
+          let merged = false;
+          for (let i = 0; i < resultFeatures.length; i++) {
+            try {
+              const u = turf.union(resultFeatures[i], fb);
+              if (u) {
+                u.properties = { ...resultFeatures[i].properties, ...fb.properties };
+                resultFeatures[i] = u;
+                merged = true;
+                break;
+              }
+            } catch (e) { /* geometrias incompatíveis para union direta — tenta a próxima */ }
+          }
+          if (!merged) resultFeatures.push(turf.clone(fb)); // não tocou nenhuma — entra como feição separada
+        });
+        addLayer(newName, { type: 'FeatureCollection', features: resultFeatures });
+        toast(`Camada "${newName}" criada com a união de "${layerA.name}" e "${layerB.name}".`);
+      } catch (err) {
+        console.error(err);
+        toast('Erro ao unir camadas: ' + err.message, 4000);
+      }
+    });
+  });
+
+  // ---------- Recortar (clip) ----------
+  document.getElementById('btn-clip').addEventListener('click', () => {
+    if (state.layers.length < 2) { toast('É preciso ao menos duas camadas: uma para recortar, outra como máscara.'); return; }
+    const optionsHtml = state.layers.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+    const bodyHtml = `
+      <label>Camada a recortar
+        <select id="clip-target">${optionsHtml}</select>
+      </label>
+      <label>Camada usada como máscara (limite do recorte)
+        <select id="clip-mask">${optionsHtml}</select>
+      </label>
+      <label>Nome da nova camada
+        <input type="text" id="clip-name" value="recorte">
+      </label>
+    `;
+    openModal('Recortar camada', bodyHtml, () => {
+      const idTarget = Number(document.getElementById('clip-target').value);
+      const idMask = Number(document.getElementById('clip-mask').value);
+      const newName = document.getElementById('clip-name').value || 'recorte';
+      if (idTarget === idMask) { toast('Escolha duas camadas diferentes.'); return; }
+
+      const layerTarget = state.layers.find(l => l.id === idTarget);
+      const layerMask = state.layers.find(l => l.id === idMask);
+      try {
+        const resultFeatures = [];
+        layerTarget.geojson.features.forEach(ft => {
+          layerMask.geojson.features.forEach(fm => {
+            try {
+              const clipped = turf.intersect(ft, fm);
+              if (clipped) {
+                clipped.properties = { ...ft.properties };
+                resultFeatures.push(clipped);
+              }
+            } catch (e) { /* par sem interseção geométrica válida — ignora */ }
+          });
+        });
+        if (resultFeatures.length === 0) {
+          toast('Nada restou do recorte — as camadas não se sobrepõem.');
+          return;
+        }
+        addLayer(newName, { type: 'FeatureCollection', features: resultFeatures });
+        toast(`Camada "${newName}" criada com o recorte de "${layerTarget.name}" por "${layerMask.name}".`);
+      } catch (err) {
+        console.error(err);
+        toast('Erro ao recortar: ' + err.message, 4000);
+      }
+    });
+  });
+
+  // ---------- Dividir feição (split por linha de corte) ----------
+  let splitHandler = null;
+  let splitTargetLayer = null;
+
+  function splitPolygonByLine(polygonFeature, lineFeature) {
+    const coords = lineFeature.geometry.coordinates;
+    if (coords.length < 2) return null;
+
+    const [x1, y1] = coords[0];
+    const [x2, y2] = coords[coords.length - 1];
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+
+    const bbox = turf.bbox(polygonFeature);
+    const diag = Math.hypot(bbox[2] - bbox[0], bbox[3] - bbox[1]) * 3 + 0.01; // margem generosa
+    const nx = -dy / len * diag, ny = dx / len * diag;
+    const ext1 = [x1 - (dx / len) * diag, y1 - (dy / len) * diag];
+    const ext2 = [x2 + (dx / len) * diag, y2 + (dy / len) * diag];
+
+    const sideA = turf.polygon([[ext1, ext2, [ext2[0] + nx, ext2[1] + ny], [ext1[0] + nx, ext1[1] + ny], ext1]]);
+    const sideB = turf.polygon([[ext1, ext2, [ext2[0] - nx, ext2[1] - ny], [ext1[0] - nx, ext1[1] - ny], ext1]]);
+
+    const partA = turf.intersect(polygonFeature, sideA);
+    const partB = turf.intersect(polygonFeature, sideB);
+    return [partA, partB].filter(Boolean);
+  }
+
+  document.getElementById('btn-split').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione a camada com a feição que deseja dividir.'); return; }
+
+    const wasActive = document.getElementById('btn-split').classList.contains('active');
+    if (splitHandler) { splitHandler.disable(); splitHandler = null; }
+    document.getElementById('btn-split').classList.remove('active');
+    if (wasActive) return;
+
+    stopActiveDraw();
+    stopMeasure();
+    splitTargetLayer = layer;
+    document.getElementById('btn-split').classList.add('active');
+    splitHandler = new L.Draw.Polyline(state.map, { shapeOptions: { color: '#000', dashArray: '4,4', weight: 2 } });
+    splitHandler.enable();
+    toast('Desenhe uma linha atravessando a feição que deseja dividir (clique nos dois extremos, depois dê duplo clique).');
+  });
+
+  state.map.on(L.Draw.Event.CREATED, (e) => {
+    if (!document.getElementById('btn-split').classList.contains('active')) return;
+
+    document.getElementById('btn-split').classList.remove('active');
+    splitHandler = null;
+    const layer = splitTargetLayer;
+    splitTargetLayer = null;
+    if (!layer) return;
+
+    const cutLine = e.layer.toGeoJSON();
+    let didSplit = false;
+
+    // Tenta dividir a primeira feição de polígono cuja bbox cruze a linha de corte.
+    for (let i = 0; i < layer.geojson.features.length; i++) {
+      const f = layer.geojson.features[i];
+      if (!f.geometry || (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon')) continue;
+      try {
+        const parts = splitPolygonByLine(f, cutLine);
+        if (parts && parts.length === 2) {
+          parts.forEach(p => { p.properties = { ...f.properties }; });
+          layer.geojson.features.splice(i, 1, ...parts);
+          didSplit = true;
+          break;
+        }
+      } catch (err) { /* essa feição não cruza a linha de corte de forma válida — tenta a próxima */ }
+    }
+
+    if (!didSplit) {
+      toast('Não foi possível dividir: a linha precisa atravessar uma feição de polígono da camada selecionada.', 4000);
+      return;
+    }
+
+    layer.editedRows = new Set();
+    syncLayerAfterGeometryChange(layer);
+    markDirty(layer);
+    renderAttributeTable();
+    toast(`Feição dividida em duas na camada "${layer.name}".`);
+  });
+
+  // ---------------- Restaura projeto salvo automaticamente, se houver ----------------
+  loadAutosavedProject();
+
+  // Captura o estado inicial (com ou sem camadas restauradas) como o primeiro
+  // ponto do histórico, para que "Desfazer" tenha algo estável para onde voltar.
+  restoringHistory = true;
+  history.stack = [snapshotProject()];
+  history.index = 0;
+  restoringHistory = false;
+  updateUndoRedoButtons();
+
+  // ---------------- Pan tool (placeholder de UI — Leaflet já navega por padrão) ----------------
+  const panBtn = document.getElementById('btn-pan');
+  panBtn.classList.add('active');
+  panBtn.addEventListener('click', () => { /* modo padrão do mapa */ });
+
+  // ================= Menu de contexto: Barras de Ferramentas e Painéis =================
+  // Réplica da lista que aparece no QGIS Desktop ao clicar com o botão direito
+  // sobre qualquer barra de ferramentas (ver Ver ► Barra de Ferramentas / Ver ► Painéis).
+  // Cada item corresponde a uma "barra" real do QGIS. O atributo `groups` lista os
+  // data-toolbar dos grupos de botões deste protótipo que pertencem a essa barra —
+  // marcar/desmarcar o item mostra ou esconde esses grupos na tela.
+  // Itens sem `groups` (ex.: Raster, Vetor, Web, GPS) não têm um grupo de botões
+  // implementado neste protótipo ainda; ficam presentes na lista (fiéis ao QGIS),
+  // mas desabilitados, com uma dica explicando o motivo.
+
+  const TB_MENU_ITEMS = [
+    { id: 'help',            label: 'Ajuda',                                          groups: null, note: 'Painel de ajuda contextual — não implementado neste protótipo.' },
+    { id: 'attributes',      label: 'Atributos',                                      groups: ['attributes'] },
+    { id: 'toolbar-generic',  label: 'barra de ferramentas',                          groups: ['project'] },
+    { id: 'annotations',     label: 'Barra de ferramentas de Annotations',            groups: null, note: 'Ferramentas de anotação (texto/HTML/SVG no mapa) — não implementadas.' },
+    { id: 'database',        label: 'Barra de Ferramentas de Banco de Dados',         groups: ['dbpython'] },
+    { id: 'digitizing',      label: 'Barra de Ferramentas de Vetorização',            groups: ['digitizing'] },
+    { id: 'advdigitizing',   label: 'Barra de Ferramentas de Vetorização Avançada',    groups: ['advdigitizing', 'advdigitizing2'] },
+    { id: 'shapedigitizing', label: 'Barra de Ferramentas de Vetorização de Formas',   groups: ['shapedigitizing'] },
+    { id: 'meshdigitizing',  label: 'Barra de ferramentas de Vetorização de Malha',    groups: null, note: 'Edição de camadas de malha (mesh) — não implementado.' },
+    { id: 'datasource',      label: 'Barra de Ferramentas do Gerenciador de Fonte de Dados', groups: ['datasource', 'managelayers2', 'createlayer'] },
+    { id: 'projecttb',       label: 'Barra de ferramentas do Projeto',                groups: ['project'] },
+    { id: 'plugins',         label: 'Complementos',                                   groups: ['dbpython'] },
+    { id: 'snapping',        label: 'Ferramentas de aderência',                       groups: null, note: 'Configurações de snapping ao digitalizar — não implementado.' },
+    { id: 'managelayers',    label: 'Gerenciar camadas',                              groups: ['datasource', 'managelayers2', 'createlayer'] },
+    { id: 'mapnav',          label: 'Mapa de Navegação',                              groups: ['mapnav', 'selection'] },
+    { id: 'raster',          label: 'Raster',                                        groups: null, note: 'Camadas raster ainda não são suportadas neste protótipo (somente vetorial/SHP).' },
+    { id: 'labelbar',        label: 'Rótulo',                                         groups: ['labels'] },
+    { id: 'vector',          label: 'Vetor',                                         groups: null, note: 'Geoprocessamento vetorial (menu Vetor) — parcialmente coberto pelos botões de Vetorização Avançada.' },
+    { id: 'web',             label: 'Web',                                           groups: null, note: 'Ferramentas de complementos Web (ex. OpenLayers) — não implementado.' },
+    { id: 'gps',             label: 'Barra de Ferramenta GPS',                       groups: ['gps2'] },
+  ];
+
+  // Itens que já vêm marcados por padrão (mesmo default do QGIS na imagem de referência)
+  const TB_DEFAULT_CHECKED = new Set([
+    'attributes','toolbar-generic','annotations','database','digitizing',
+    'advdigitizing','shapedigitizing','meshdigitizing','datasource','projecttb',
+    'plugins','snapping','managelayers','mapnav','labelbar'
+    // 'raster','vector','web','gps','help' ficam desmarcados por padrão, como no QGIS
+  ]);
+
+  const TB_STORAGE_KEY = 'qgisWebProto_toolbarVisibility_v1';
+
+  function loadTbVisibility() {
+    try {
+      const raw = localStorage.getItem(TB_STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* localStorage indisponível */ }
+    // default: monta a partir de TB_DEFAULT_CHECKED
+    const defaults = {};
+    TB_MENU_ITEMS.forEach(it => { defaults[it.id] = TB_DEFAULT_CHECKED.has(it.id); });
+    return defaults;
+  }
+
+  let tbVisibility = loadTbVisibility();
+
+  function saveTbVisibility() {
+    try { localStorage.setItem(TB_STORAGE_KEY, JSON.stringify(tbVisibility)); }
+    catch (e) { /* localStorage indisponível — preferência só dura a sessão */ }
+  }
+
+  // Aplica o estado atual de tbVisibility mostrando/escondendo os grupos de botões na tela
+  function applyTbVisibility() {
+    // Primeiro, assume tudo escondido, depois mostra o que algum item marcado libera.
+    const groupsToShow = new Set();
+    TB_MENU_ITEMS.forEach(item => {
+      if (item.groups && tbVisibility[item.id]) {
+        item.groups.forEach(g => groupsToShow.add(g));
+      }
+    });
+    document.querySelectorAll('.toolbar-group[data-toolbar]').forEach(el => {
+      const name = el.getAttribute('data-toolbar');
+      if (groupsToShow.has(name)) {
+        el.classList.remove('tb-hidden');
+      } else {
+        el.classList.add('tb-hidden');
+      }
+    });
+  }
+
+  function buildTbContextMenu() {
+    const menu = document.getElementById('tb-context-menu');
+    menu.innerHTML = '';
+    TB_MENU_ITEMS.forEach(item => {
+      const row = document.createElement('div');
+      const isChecked = !!tbVisibility[item.id];
+      const isDisabled = !item.groups; // sem grupo de botões implementado neste protótipo
+      row.className = 'tbcm-item' + (isChecked ? ' checked' : '') + (isDisabled ? ' disabled-item' : '');
+      row.title = isDisabled ? item.note : '';
+      row.innerHTML = `<span class="tbcm-check"></span><span class="tbcm-label">${item.label}</span>`;
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isDisabled) {
+          toast(item.note, 3200);
+          return; // não alterna itens sem barra correspondente implementada
+        }
+        tbVisibility[item.id] = !tbVisibility[item.id];
+        saveTbVisibility();
+        applyTbVisibility();
+        buildTbContextMenu(); // reconstrói para atualizar o check visual
+        openTbMenuAt(lastTbMenuX, lastTbMenuY); // mantém o menu aberto, como no QGIS
+      });
+      menu.appendChild(row);
+    });
+  }
+
+  let lastTbMenuX = 0, lastTbMenuY = 0;
+
+  function openTbMenuAt(x, y) {
+    const menu = document.getElementById('tb-context-menu');
+    menu.classList.add('open');
+    // Ajusta posição para não sair da tela
+    const menuRect = menu.getBoundingClientRect();
+    const maxX = window.innerWidth - menuRect.width - 8;
+    const maxY = window.innerHeight - menuRect.height - 8;
+    menu.style.left = Math.max(4, Math.min(x, maxX)) + 'px';
+    menu.style.top = Math.max(4, Math.min(y, maxY)) + 'px';
+    lastTbMenuX = x; lastTbMenuY = y;
+  }
+
+  function closeTbMenu() {
+    document.getElementById('tb-context-menu').classList.remove('open');
+  }
+
+  function showTbContextMenu(clientX, clientY) {
+    buildTbContextMenu();
+    const menu = document.getElementById('tb-context-menu');
+    // torna visível fora da tela primeiro para medir dimensões corretamente
+    menu.style.left = '-9999px';
+    menu.style.top = '-9999px';
+    menu.classList.add('open');
+    requestAnimationFrame(() => openTbMenuAt(clientX, clientY));
+  }
+
+  // Dispara o menu ao clicar com o botão direito em qualquer barra de ferramentas
+  // (barra de menu, toolbar principal, toolbar secundária) — igual ao QGIS real.
+  [document.getElementById('menubar'), document.getElementById('toolbar'), document.getElementById('toolbar2')]
+    .filter(Boolean)
+    .forEach(bar => {
+      bar.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showTbContextMenu(e.clientX, e.clientY);
+      });
+    });
+
+  // Fecha o menu ao clicar fora ou pressionar Esc
+  document.addEventListener('click', (e) => {
+    const menu = document.getElementById('tb-context-menu');
+    if (menu.classList.contains('open') && !menu.contains(e.target)) closeTbMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeTbMenu();
+  });
+  // Evita que o menu de contexto padrão do navegador apareça também dentro dele
+  document.getElementById('tb-context-menu').addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // Aplica o estado salvo/padrão assim que a interface carrega
+  applyTbVisibility();
+</script>
+</body>
+</html>
