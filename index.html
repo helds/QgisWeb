@@ -1101,7 +1101,8 @@
         flashAutosaveIndicator();
       } catch (err) {
         console.error('Falha ao salvar automaticamente:', err);
-        document.getElementById('autosave-indicator').textContent = '⚠ Falha ao salvar (espaço do navegador cheio?)';
+        const el = document.getElementById('autosave-indicator');
+        if (el) el.textContent = '⚠ Falha ao salvar (espaço do navegador cheio?)';
       }
     }, 800); // debounce: espera a pessoa parar de editar antes de gravar
     pushHistorySoon();
@@ -1219,7 +1220,7 @@
 
   function flashAutosaveIndicator() {
     const el = document.getElementById('autosave-indicator');
-    el.textContent = '💾 Salvo automaticamente';
+    if (el) el.textContent = '💾 Salvo automaticamente';
   }
 
   function loadAutosavedProject() {
@@ -1257,11 +1258,14 @@
     toast(`Projeto restaurado automaticamente (${data.layers.length} camada(s), salvo em ${new Date(data.savedAt).toLocaleString('pt-BR')}).`, 4000);
   }
 
-  document.getElementById('btn-clear-autosave').addEventListener('click', () => {
-    if (!confirm('Isso apaga os dados salvos automaticamente neste navegador (não afeta arquivos já exportados). Continuar?')) return;
-    localStorage.removeItem(AUTOSAVE_KEY);
-    toast('Dados salvos automaticamente foram apagados.');
-  });
+  const btnClearAutosave = document.getElementById('btn-clear-autosave');
+  if (btnClearAutosave) {
+    btnClearAutosave.addEventListener('click', () => {
+      if (!confirm('Isso apaga os dados salvos automaticamente neste navegador (não afeta arquivos já exportados). Continuar?')) return;
+      localStorage.removeItem(AUTOSAVE_KEY);
+      toast('Dados salvos automaticamente foram apagados.');
+    });
+  }
 
   // ---------------- Import ----------------
   document.getElementById('btn-import').addEventListener('click', () => {
