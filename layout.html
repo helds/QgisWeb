@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Layout de Impressão — QGIS Web</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --panel-bg:#f0f0f0;
+    --panel-border:#b5b5b5;
+    --toolbar-bg:#e8e8e8;
+    --text:#1e1e1e;
+    --text-dim:#5a5a5a;
+    --accent:#3388cc;
+    --accent-dark:#2a6ca3;
+    --hover:#d8e8f5;
+    --selected:#cfe4f7;
+    --statusbar-bg:#e0e0e0;
+    --divider:#c4c4c4;
+    --toolbar-divider-line:#8a8a8a;
+    --canvas-bg:#7d7d7d;
+    --page-bg:#ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin:0; padding:0; height:100%; width:100%;
+    font-family: "Segoe UI", "Noto Sans", Arial, sans-serif;
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--panel-bg);
+    overflow: hidden;
+  }
+  #app { display:flex; flex-direction:column; height:100vh; width:100vw; }
+
+  /* ---------- Barra de menu ---------- */
+  #menubar-title {
+    display:flex; align-items:center; gap:6px;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 3px 8px;
+    height: 26px;
+    flex-shrink:0;
+  }
+  #menubar-title img { width:18px; height:18px; }
+  #menubar-title span { font-weight:600; }
+  #menubar {
+    display:flex; align-items:center;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 2px 6px;
+    height: 24px;
+    flex-shrink:0;
+    gap: 2px;
+  }
+  #menubar .menu-item {
+    padding: 2px 9px;
+    cursor:default;
+    border-radius:2px;
+  }
+  #menubar .menu-item:hover { background: var(--hover); }
+  #menubar .menu-item u { text-decoration: underline; }
+
+  /* ---------- Toolbar (linhas horizontais no topo) ---------- */
+  .toolbar-row {
+    display:flex; align-items:center;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--toolbar-divider-line);
+    padding: 3px 6px;
+    height: 34px;
+    flex-shrink:0;
+    gap: 2px;
+    overflow:hidden;
+  }
+  .tool-btn {
+    display:flex; align-items:center; justify-content:center;
+    width: 30px; height: 30px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background-color: transparent;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 22px 22px;
+    cursor: pointer;
+    font-size: 15px;
+    color: var(--text);
+    flex-shrink:0;
+    position:relative;
+  }
+  .tool-btn:hover { background-color: var(--hover); border-color:#a9c9e6; }
+  .tool-btn.active { background-color: var(--selected); border-color: var(--accent); }
+  .tool-btn:disabled { opacity:0.4; cursor:default; }
+  .tool-btn:disabled:hover { background-color:transparent; border-color:transparent; }
+  .toolbar-sep { width:1px; height:22px; background:var(--divider); margin:0 5px; flex-shrink:0; }
+
+  /* ---------- Ferramentas ainda não implementadas nesta simulação ---------- */
+  /* Mesmo tratamento visual do mapa principal: ícone real no lugar certo,
+     mas com borda vermelha indicando que a ação ainda não foi programada. */
+  .tool-btn.not-implemented {
+    border-color: #d00000 !important;
+    box-shadow: inset 0 0 0 1px rgba(208,0,0,0.35);
+  }
+  .tool-btn.not-implemented:hover {
+    background-color: #fce8e8;
+    border-color: #d00000 !important;
+  }
+
+  /* botão com setinha de dropdown ao lado (ex.: Alinhar Itens, Distribuir, Redimensionar) */
+  .tool-btn-dropdown { display:flex; align-items:stretch; flex-shrink:0; }
+  .tool-btn-dropdown .tool-btn { border-radius: 3px 0 0 3px; }
+  .tool-btn-dropdown .dropdown-arrow {
+    display:flex; align-items:center; justify-content:center;
+    width:12px; border:1px solid transparent; border-left:none;
+    border-radius: 0 3px 3px 0;
+    cursor:pointer; color:var(--text-dim); font-size:9px;
+  }
+  .tool-btn-dropdown .dropdown-arrow:hover { background-color: var(--hover); }
+
+  /* campo de atlas ("1" com setas) na toolbar */
+  .atlas-field {
+    display:flex; align-items:center; height:24px; margin:0 3px;
+    border:1px solid var(--panel-border); border-radius:2px; background:#fff;
+  }
+  .atlas-field input { width:36px; border:none; text-align:center; font-size:12px; }
+  .atlas-field .atlas-field-arrow { padding:0 4px; color:var(--text-dim); cursor:pointer; font-size:9px; }
+
+
+  /* ---------- Corpo ---------- */
+  #body-row { flex:1; display:flex; min-height:0; }
+
+  /* ---------- Toolbar vertical (ferramentas de Adicionar Item + navegação) ---------- */
+  #vtoolbar {
+    width: 34px; flex-shrink:0;
+    background: var(--toolbar-bg);
+    border-right: 1px solid var(--toolbar-divider-line);
+    display:flex; flex-direction:column; align-items:center;
+    padding: 4px 2px;
+    gap: 1px;
+    overflow-y:auto;
+  }
+  #vtoolbar .toolbar-sep-h { width:22px; height:1px; background:var(--divider); margin:4px 0; flex-shrink:0; }
+
+  #canvas-scroll {
+    flex:1; overflow:auto;
+    background: var(--canvas-bg);
+    position:relative;
+    display:flex; align-items:flex-start; justify-content:center;
+    padding:40px;
+  }
+  #page {
+    position:relative;
+    background: var(--page-bg);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    flex-shrink:0;
+  }
+  .layout-item {
+    position:absolute;
+    border: 1px dashed transparent;
+  }
+  .layout-item.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .layout-item .resize-handle {
+    position:absolute; width:9px; height:9px;
+    background:#fff; border:1px solid var(--accent);
+    display:none;
+  }
+  .layout-item.selected .resize-handle { display:block; }
+  .layout-item .resize-handle.br { right:-5px; bottom:-5px; cursor:nwse-resize; }
+
+  .layout-item.map-item { overflow:hidden; background:#e3e3e3; }
+  .layout-item.map-item .leaflet-container { background:#e3e3e3; }
+  .layout-item.map-item .map-placeholder-msg {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:10px; color:var(--text-dim); font-size:11.5px; pointer-events:none;
+  }
+
+  .layout-item.legend-item {
+    background:#fff; border:1px solid #999; padding:6px 10px; font-size:11px; overflow:auto;
+  }
+  .layout-item.legend-item .legend-title { font-weight:600; margin-bottom:4px; }
+  .layout-item.legend-item .legend-row { display:flex; align-items:center; gap:6px; margin:2px 0; }
+  .layout-item.legend-item .legend-swatch { width:12px; height:12px; flex-shrink:0; border:1px solid #333; }
+
+  .layout-item.scalebar-item {
+    background:transparent; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .layout-item.label-item {
+    background:transparent; display:flex; align-items:center; padding:2px 4px; font-size:13px;
+  }
+
+  /* ---------- Painéis à direita ---------- */
+  #right-panels {
+    width: 300px; flex-shrink:0;
+    display:flex; flex-direction:column;
+    border-left:1px solid var(--panel-border);
+    background: var(--panel-bg);
+  }
+  .panel-block { border-bottom:1px solid var(--panel-border); }
+  .panel-header {
+    background: var(--toolbar-bg);
+    padding:4px 8px; font-weight:600;
+    border-bottom:1px solid var(--panel-border);
+  }
+  .panel-body { padding:8px; max-height:260px; overflow:auto; }
+
+  #items-list { list-style:none; margin:0; padding:0; }
+  #items-list li {
+    display:flex; align-items:center; gap:6px;
+    padding:3px 6px; cursor:default; border-radius:2px;
+  }
+  #items-list li:hover { background: var(--hover); }
+  #items-list li.selected { background: var(--selected); font-weight:600; }
+  #items-list li .item-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .prop-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .prop-row label { width:110px; flex-shrink:0; color:var(--text-dim); }
+  .prop-row input[type="number"], .prop-row input[type="text"], .prop-row select {
+    flex:1; padding:3px 5px; border:1px solid var(--panel-border); border-radius:2px; font-size:12px;
+  }
+
+  #no-selection-msg { color:var(--text-dim); padding:8px; font-style:italic; }
+
+  /* ---------- Barra de status ---------- */
+  #statusbar {
+    height:22px; flex-shrink:0;
+    background: var(--statusbar-bg);
+    border-top:1px solid var(--panel-border);
+    display:flex; align-items:center; gap:14px;
+    padding:0 10px; font-size:11.5px; color:var(--text-dim);
+  }
+  #sync-indicator { display:flex; align-items:center; gap:5px; }
+  #sync-dot { width:8px; height:8px; border-radius:50%; background:#999; }
+  #sync-dot.live { background:#3caf3c; }
+
+  /* ---------- Toast ---------- */
+  #toast {
+    position:fixed; bottom:34px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:#2a2a2a; color:#fff; padding:8px 16px; border-radius:4px;
+    font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+    z-index:5000; max-width:70vw; text-align:center;
+  }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="menubar-title">
+    <img src="icons/mIconLayout.svg" alt="">
+    <span>Mapa de Localização</span>
+  </div>
+  <div id="menubar">
+    <div class="menu-item"><u>L</u>ayout</div>
+    <div class="menu-item">E<u>d</u>itar</div>
+    <div class="menu-item">E<u>x</u>ibir</div>
+    <div class="menu-item"><u>I</u>tens</div>
+    <div class="menu-item"><u>A</u>dicionar Item</div>
+    <div class="menu-item">A<u>t</u>las</div>
+    <div class="menu-item"><u>C</u>onfigurações</div>
+  </div>
+
+  <div class="toolbar-row" id="toolbar-row1">
+    <button class="tool-btn not-implemented" id="btn-save-project" title="Salvar projeto" style="background-image:url('icons/mActionFileSave.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-layout" title="Novo layout" style="background-image:url('icons/mActionNewLayout.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-duplicate-layout" title="Duplicar layout" style="background-image:url('icons/mActionDuplicateLayout.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-layout-manager2" title="Gerenciador de layouts" style="background-image:url('icons/mActionLayoutManager.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-open-template" title="Adicionar itens de modelo" style="background-image:url('icons/mActionFileOpen.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-save-template" title="Salvar como modelo…" style="background-image:url('icons/mActionFileSaveAs.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn" id="tool-export-image" title="Exportar como imagem…" style="background-image:url('icons/mActionSaveMapAsImage.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-export-svg" title="Exportar como SVG…" style="background-image:url('icons/mActionSaveAsSVG.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-export-pdf" title="Exportar como PDF…" style="background-image:url('icons/mActionSaveAsPDF.svg')"></button>
+    <button class="tool-btn" id="tool-print" title="Imprimir…" style="background-image:url('icons/mActionFilePrint.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn" id="btn-undo" title="Desfazer" disabled style="background-image:url('icons/mActionUndo.svg')"></button>
+    <button class="tool-btn" id="btn-redo" title="Refazer" disabled style="background-image:url('icons/mActionRedo.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn not-implemented" id="btn-atlas-preview" title="Pré-visualização do atlas" style="background-image:url('icons/mIconAtlas.svg')"></button>
+    <button class="tool-btn" id="btn-atlas-first" title="Primeira feição" disabled style="background-image:url('icons/mActionAtlasFirst.svg')"></button>
+    <button class="tool-btn" id="btn-atlas-prev" title="Feição anterior" disabled style="background-image:url('icons/mActionAtlasPrev.svg')"></button>
+    <div class="atlas-field"><input type="text" value="1" disabled></div>
+    <button class="tool-btn" id="btn-atlas-next" title="Próxima feição" disabled style="background-image:url('icons/mActionAtlasNext.svg')"></button>
+    <button class="tool-btn" id="btn-atlas-last" title="Última feição" disabled style="background-image:url('icons/mActionAtlasLast.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn" id="btn-atlas-print" title="Imprimir atlas…" disabled style="background-image:url('icons/mActionFilePrint.svg')"></button>
+    <button class="tool-btn" id="btn-atlas-export-image" title="Exportar atlas como imagens…" disabled style="background-image:url('icons/mActionSaveMapAsImage.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-atlas-settings" title="Configurações do atlas" style="background-image:url('icons/mActionAtlasSettings.svg')"></button>
+  </div>
+
+  <div class="toolbar-row" id="toolbar-row2">
+    <button class="tool-btn not-implemented" id="btn-zoom-in" title="Ampliar zoom" style="background-image:url('icons/mActionZoomIn.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-out" title="Reduzir zoom" style="background-image:url('icons/mActionZoomOut.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Zoom para 100%" style="background-image:url('icons/mActionZoomActual.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-full" title="Aproximar tudo" style="background-image:url('icons/mActionZoomFullExtent.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-refresh" title="Atualizar" style="background-image:url('icons/mActionRefresh.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn not-implemented" id="btn-lock-selected" title="Bloquear itens selecionados" style="background-image:url('icons/locked.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-unlock-all" title="Desbloquear tudo" style="background-image:url('icons/unlocked.svg')"></button>
+    <div class="toolbar-sep"></div>
+    <div class="tool-btn-dropdown">
+      <button class="tool-btn not-implemented" id="btn-align-items" title="Alinhar itens" style="background-image:url('icons/mActionAddBasicRectangle.svg')"></button>
+      <div class="dropdown-arrow">▾</div>
+    </div>
+    <div class="tool-btn-dropdown">
+      <button class="tool-btn not-implemented" id="btn-distribute-items" title="Distribuir itens" style="background-image:url('icons/mLayoutItemPolyline.svg')"></button>
+      <div class="dropdown-arrow">▾</div>
+    </div>
+    <div class="tool-btn-dropdown">
+      <button class="tool-btn not-implemented" id="btn-resize-items" title="Redimensionar itens" style="background-image:url('icons/mActionMoveItemContent.svg')"></button>
+      <div class="dropdown-arrow">▾</div>
+    </div>
+  </div>
+
+  <div id="body-row">
+    <div id="vtoolbar">
+      <button class="tool-btn not-implemented" id="tool-pan" title="Deslocar layout" style="background-image:url('icons/mActionPan.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-zoom-area" title="Zoom" style="background-image:url('icons/mActionZoomToArea.svg')"></button>
+      <div class="toolbar-sep-h"></div>
+      <button class="tool-btn active" id="tool-select" title="Selecionar/mover item" style="background-image:url('icons/mActionSelect.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-move-content" title="Mover conteúdo do item" style="background-image:url('icons/mActionMoveItemContent.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-edit-nodes" title="Editar nós de item" style="background-image:url('icons/mActionAddNodesItem.svg')"></button>
+      <div class="toolbar-sep-h"></div>
+      <button class="tool-btn" id="tool-add-map" title="Adicionar mapa" style="background-image:url('icons/mActionAddMap.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-map3d" title="Adicionar mapa 3D" style="background-image:url('icons/mActionAdd3DMap.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-image" title="Adicionar imagem" style="background-image:url('icons/mActionAddImage.svg')"></button>
+      <button class="tool-btn" id="tool-add-label" title="Adicionar rótulo" style="background-image:url('icons/mActionLabel.svg')"></button>
+      <button class="tool-btn" id="tool-add-legend" title="Adicionar legenda" style="background-image:url('icons/mActionAddLegend.svg')"></button>
+      <button class="tool-btn" id="tool-add-scalebar" title="Adicionar barra de escala" style="background-image:url('icons/mActionScaleBar.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-north-arrow" title="Adicionar seta norte" style="background-image:url('icons/north_arrow.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-shape" title="Adicionar forma" style="background-image:url('icons/mActionAddBasicShape.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-marker" title="Adicionar marcador" style="background-image:url('icons/mActionAddMarker.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-arrow" title="Adicionar seta" style="background-image:url('icons/mActionAddArrow.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-node-shape" title="Adicionar polígono/polilinha" style="background-image:url('icons/mActionAddPolygon.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-html" title="Adicionar HTML" style="background-image:url('icons/mActionAddHtml.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-table" title="Adicionar tabela de atributos" style="background-image:url('icons/mActionAddTable.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-fixed-table" title="Adicionar tabela fixa" style="background-image:url('icons/mActionAddManualTable.svg')"></button>
+      <button class="tool-btn not-implemented" id="tool-add-elevation-profile" title="Adicionar perfil de elevação" style="background-image:url('icons/mActionElevationProfile.svg')"></button>
+    </div>
+    <div id="canvas-scroll">
+      <div id="page" style="width:793px; height:1122px;"><!-- A4 a 96dpi --></div>
+    </div>
+
+    <div id="right-panels">
+      <div class="panel-block" style="flex:0 0 auto;">
+        <div class="panel-header">Itens</div>
+        <div class="panel-body" style="max-height:160px;">
+          <ul id="items-list"></ul>
+        </div>
+      </div>
+      <div class="panel-block" style="flex:1 1 auto; display:flex; flex-direction:column; min-height:0;">
+        <div class="panel-header">Propriedades do item</div>
+        <div class="panel-body" id="item-props-body" style="flex:1; max-height:none;">
+          <div id="no-selection-msg">Nenhum item selecionado.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <span id="page-info">Página 1 de 1</span>
+    <span id="item-count-info"></span>
+    <span style="flex:1;"></span>
+    <div id="sync-indicator">
+      <span id="sync-dot"></span>
+      <span id="sync-label">Aguardando dados do mapa…</span>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // =====================================================================
+  // Recepção do estado do mapa principal — canal ESTRITAMENTE unidirecional.
+  // Esta janela nunca escreve de volta no canal: ela só lê. A extensão/zoom
+  // de cada item de mapa aqui é local a este layout, exatamente como no
+  // QGIS desktop (mover o item de mapa no Compositor não move o canvas
+  // principal do projeto).
+  // =====================================================================
+  const LAYOUT_SYNC_CHANNEL = 'qgis-layout-sync';
+  let mapProjectState = { projectCrs: 'EPSG:4326', layers: [] };
+  let hasReceivedSnapshot = false;
+
+  const syncDot = document.getElementById('sync-dot');
+  const syncLabel = document.getElementById('sync-label');
+
+  function markSynced() {
+    hasReceivedSnapshot = true;
+    syncDot.classList.add('live');
+    syncLabel.textContent = 'Sincronizado com o mapa principal';
+  }
+
+  if (!('BroadcastChannel' in window)) {
+    syncLabel.textContent = 'Este navegador não suporta sincronização em tempo real.';
+  } else {
+    const channel = new BroadcastChannel(LAYOUT_SYNC_CHANNEL);
+    channel.onmessage = (ev) => {
+      const msg = ev.data;
+      if (!msg) return;
+      if (msg.type === 'layout-sync-snapshot') {
+        mapProjectState = msg.snapshot;
+        markSynced();
+        applySnapshotToAllMapItems();
+        refreshLegendItemsIfAuto();
+      }
+    };
+    // Pede um snapshot imediato ao abrir — não queremos esperar a próxima
+    // mudança de camada no mapa principal para ver algo aqui.
+    channel.postMessage({ type: 'layout-sync-request' });
+    // Reforça o pedido algumas vezes nos primeiros segundos, caso a janela
+    // principal ainda estivesse carregando o script no instante do primeiro pedido.
+    let retries = 0;
+    const retryTimer = setInterval(() => {
+      retries += 1;
+      if (hasReceivedSnapshot || retries > 5) { clearInterval(retryTimer); return; }
+      channel.postMessage({ type: 'layout-sync-request' });
+    }, 700);
+
+    window.addEventListener('beforeunload', () => channel.close());
+  }
+
+  function toast(msg, ms = 2600) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove('show'), ms);
+  }
+
+  // =====================================================================
+  // Estado do layout (itens na página) — inteiramente local a esta janela.
+  // =====================================================================
+  const layoutState = {
+    items: [],   // { id, type:'map'|'legend'|'scalebar'|'label', x,y,w,h, ...propriedades específicas }
+    nextId: 1,
+    selectedId: null,
+  };
+
+  const pageEl = document.getElementById('page');
+  const itemsListEl = document.getElementById('items-list');
+  const itemPropsBody = document.getElementById('item-props-body');
+  const itemCountInfo = document.getElementById('item-count-info');
+
+  function genId() { return 'li' + (layoutState.nextId++); }
+
+  // ---- Criação de itens ----
+  function addMapItem(x, y, w, h) {
+    const item = {
+      id: genId(), type: 'map', x, y, w, h,
+      // Extensão própria do item, independente do mapa principal. Nasce em
+      // branco/padrão (visão mundial) — o usuário ajusta manualmente, como
+      // pedido: o layout nunca herda a extensão atual do mapa principal.
+      center: [-9.7, -36.0], zoom: 3,
+      leaflet: null,
+    };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+  }
+
+  function addLegendItem(x, y, w, h) {
+    const item = { id: genId(), type: 'legend', x, y, w, h, title: 'Legenda', autoUpdate: true };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+  }
+
+  function addScalebarItem(x, y, w, h) {
+    const item = { id: genId(), type: 'scalebar', x, y, w, h, style: 'Linha simples', units: 'metros' };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+  }
+
+  function addLabelItem(x, y, w, h) {
+    const item = { id: genId(), type: 'label', x, y, w, h, text: 'Rótulo' };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+  }
+
+  function getItem(id) { return layoutState.items.find(i => i.id === id); }
+
+  function selectItem(id) {
+    layoutState.selectedId = id;
+    renderAll();
+  }
+
+  function deleteItem(id) {
+    const item = getItem(id);
+    if (item && item.leaflet) { item.leaflet.remove(); }
+    layoutState.items = layoutState.items.filter(i => i.id !== id);
+    if (layoutState.selectedId === id) layoutState.selectedId = null;
+    renderAll();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && layoutState.selectedId) {
+      const tag = (document.activeElement && document.activeElement.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      deleteItem(layoutState.selectedId);
+    }
+  });
+
+  // ---- Ferramentas: modo ativo (o que acontece ao desenhar um retângulo na página) ----
+  let activeTool = 'select'; // 'select' | 'add-map' | 'add-legend' | 'add-scalebar' | 'add-label'
+  const toolButtons = {
+    select: document.getElementById('tool-select'),
+    'add-map': document.getElementById('tool-add-map'),
+    'add-legend': document.getElementById('tool-add-legend'),
+    'add-scalebar': document.getElementById('tool-add-scalebar'),
+    'add-label': document.getElementById('tool-add-label'),
+  };
+  function setActiveTool(tool) {
+    activeTool = tool;
+    Object.entries(toolButtons).forEach(([key, btn]) => btn.classList.toggle('active', key === tool));
+  }
+  setActiveTool('select');
+  toolButtons.select.addEventListener('click', () => setActiveTool('select'));
+  toolButtons['add-map'].addEventListener('click', () => setActiveTool('add-map'));
+  toolButtons['add-legend'].addEventListener('click', () => setActiveTool('add-legend'));
+  toolButtons['add-scalebar'].addEventListener('click', () => setActiveTool('add-scalebar'));
+  toolButtons['add-label'].addEventListener('click', () => setActiveTool('add-label'));
+
+  // ---- Desenhar um retângulo na página pra criar um item (arrastar com o mouse) ----
+  let drawing = null; // { startX, startY, ghostEl }
+  pageEl.addEventListener('mousedown', (e) => {
+    if (activeTool === 'select') return;
+    if (e.target !== pageEl) return; // clique já foi num item existente
+    const rect = pageEl.getBoundingClientRect();
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+    const ghost = document.createElement('div');
+    ghost.style.position = 'absolute';
+    ghost.style.border = '1px dashed #3388cc';
+    ghost.style.background = 'rgba(51,136,204,0.12)';
+    ghost.style.left = startX + 'px';
+    ghost.style.top = startY + 'px';
+    pageEl.appendChild(ghost);
+    drawing = { startX, startY, ghostEl: ghost };
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!drawing) return;
+    const rect = pageEl.getBoundingClientRect();
+    const curX = e.clientX - rect.left;
+    const curY = e.clientY - rect.top;
+    const x = Math.min(drawing.startX, curX), y = Math.min(drawing.startY, curY);
+    const w = Math.abs(curX - drawing.startX), h = Math.abs(curY - drawing.startY);
+    Object.assign(drawing.ghostEl.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (!drawing) return;
+    const rect = pageEl.getBoundingClientRect();
+    const curX = e.clientX - rect.left;
+    const curY = e.clientY - rect.top;
+    const x = Math.min(drawing.startX, curX), y = Math.min(drawing.startY, curY);
+    let w = Math.abs(curX - drawing.startX), h = Math.abs(curY - drawing.startY);
+    drawing.ghostEl.remove();
+    drawing = null;
+    if (w < 15 || h < 15) { w = 220; h = 150; } // clique simples sem arrastar: tamanho padrão
+    if (activeTool === 'add-map') addMapItem(x, y, w, h);
+    else if (activeTool === 'add-legend') addLegendItem(x, y, w, h);
+    else if (activeTool === 'add-scalebar') addScalebarItem(x, y, w, h);
+    else if (activeTool === 'add-label') addLabelItem(x, y, w, h);
+    setActiveTool('select');
+  });
+
+  // ---- Renderização geral ----
+  function renderAll() {
+    renderPageItems();
+    renderItemsPanel();
+    renderPropsPanel();
+    itemCountInfo.textContent = layoutState.selectedId ? '1 item selecionado' : '';
+  }
+
+  function itemLabel(item) {
+    const names = { map: 'Mapa', legend: 'Legenda', scalebar: 'Escala', label: 'Rótulo' };
+    return (names[item.type] || item.type) + ' ' + item.id.replace('li', '');
+  }
+
+  function renderPageItems() {
+    // Remove DOM de itens que não existem mais
+    Array.from(pageEl.querySelectorAll('.layout-item')).forEach(el => {
+      if (!getItem(el.dataset.id)) el.remove();
+    });
+
+    layoutState.items.forEach(item => {
+      let el = pageEl.querySelector('.layout-item[data-id="' + item.id + '"]');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'layout-item ' + item.type + '-item';
+        el.dataset.id = item.id;
+        const handle = document.createElement('div');
+        handle.className = 'resize-handle br';
+        el.appendChild(handle);
+        pageEl.appendChild(el);
+        makeItemInteractive(el, item);
+      }
+      el.style.left = item.x + 'px';
+      el.style.top = item.y + 'px';
+      el.style.width = item.w + 'px';
+      el.style.height = item.h + 'px';
+      el.classList.toggle('selected', layoutState.selectedId === item.id);
+      renderItemContent(el, item);
+    });
+  }
+
+  function renderItemContent(el, item) {
+    if (item.type === 'map') {
+      ensureMapLeaflet(el, item);
+    } else if (item.type === 'legend') {
+      renderLegendContent(el, item);
+    } else if (item.type === 'scalebar') {
+      el.innerHTML = '<div class="resize-handle br"></div><div style="border-top:2px solid #000; width:80%; text-align:center; font-size:10px;">0&nbsp;&nbsp;&nbsp;&nbsp;500 m</div>';
+    } else if (item.type === 'label') {
+      if (el.querySelector('.label-text-el')) {
+        el.querySelector('.label-text-el').textContent = item.text;
+      } else {
+        el.innerHTML = '<div class="resize-handle br"></div><span class="label-text-el">' + escapeHtml(item.text) + '</span>';
+      }
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---- Item de Mapa: mini-Leaflet somente-leitura espelhando o mapa principal ----
+  function ensureMapLeaflet(el, item) {
+    if (item.leaflet) return;
+    // Container próprio dentro do item (o item em si pode ganhar borda/handle de resize)
+    let mapDiv = el.querySelector('.map-leaflet-div');
+    if (!mapDiv) {
+      el.innerHTML = '<div class="resize-handle br"></div><div class="map-leaflet-div" style="position:absolute; inset:0;"></div><div class="map-placeholder-msg"></div>';
+      mapDiv = el.querySelector('.map-leaflet-div');
+    }
+    const map = L.map(mapDiv, {
+      attributionControl: false,
+      zoomControl: false,
+      center: item.center,
+      zoom: item.zoom,
+    });
+    item.leaflet = map;
+    map.on('moveend', () => {
+      item.center = [map.getCenter().lat, map.getCenter().lng];
+      item.zoom = map.getZoom();
+    });
+    // Re-renderiza o tamanho do canvas Leaflet quando o item é redimensionado
+    setTimeout(() => map.invalidateSize(), 0);
+    applySnapshotToMapItem(item);
+  }
+
+  function updatePlaceholderMessage(el) {
+    const msg = el.querySelector('.map-placeholder-msg');
+    if (!msg) return;
+    if (!hasReceivedSnapshot) {
+      msg.textContent = 'Aguardando dados do mapa principal…';
+    } else if (!mapProjectState.layers.some(l => l.visible)) {
+      msg.textContent = 'Nenhuma camada visível no projeto.';
+    } else {
+      msg.textContent = '';
+    }
+  }
+
+  // Reconstrói as camadas Leaflet visíveis de um item de mapa a partir do
+  // snapshot mais recente recebido do mapa principal. Chamado sempre que um
+  // novo snapshot chega, e também na criação do item.
+  function applySnapshotToMapItem(item) {
+    if (!item.leaflet) return;
+    const map = item.leaflet;
+    if (!item._layerGroups) item._layerGroups = new Map(); // layerId -> L.Layer
+
+    // Remove camadas que não existem mais no projeto
+    const currentIds = new Set(mapProjectState.layers.map(l => l.id));
+    item._layerGroups.forEach((leafletLayer, layerId) => {
+      if (!currentIds.has(layerId)) { map.removeLayer(leafletLayer); item._layerGroups.delete(layerId); }
+    });
+
+    // QGIS desenha a lista de camadas de cima para baixo; a última do array
+    // (adicionada por último) fica no topo — replicamos essa ordem aqui.
+    mapProjectState.layers.forEach(layer => {
+      let leafletLayer = item._layerGroups.get(layer.id);
+      if (layer.isBasemap) {
+        // Camadas base (tiles OSM etc.) — recriamos como tile layer simples se visível.
+        if (!layer.visible) {
+          if (leafletLayer) { map.removeLayer(leafletLayer); item._layerGroups.delete(layer.id); }
+          return;
+        }
+        if (!leafletLayer) {
+          leafletLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+          item._layerGroups.set(layer.id, leafletLayer);
+        }
+        if (!map.hasLayer(leafletLayer)) leafletLayer.addTo(map);
+        return;
+      }
+
+      if (!layer.visible) {
+        if (leafletLayer) { map.removeLayer(leafletLayer); item._layerGroups.delete(layer.id); }
+        return;
+      }
+
+      const sym = layer.symbology || {};
+      const style = {
+        fillColor: layer.color,
+        fillOpacity: sym.fillStyle === 'none' ? 0 : ((layer.fillOpacityPct !== undefined ? layer.fillOpacityPct : 100) / 100),
+        color: sym.strokeColor || '#232323',
+        weight: sym.strokeStyle === 'none' ? 0 : Math.max(0.5, (sym.strokeWidth || 0.26) * (1 / 0.26)),
+      };
+
+      if (!leafletLayer) {
+        leafletLayer = L.geoJSON(layer.geojson, {
+          style: () => style,
+          pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 5, ...style }),
+        });
+        item._layerGroups.set(layer.id, leafletLayer);
+      } else {
+        // Atualiza estilo e geometria in-place em vez de recriar (mais leve
+        // e evita "piscar" o item de mapa a cada snapshot).
+        leafletLayer.clearLayers();
+        leafletLayer.addData(layer.geojson);
+        leafletLayer.setStyle(style);
+      }
+      if (!map.hasLayer(leafletLayer)) leafletLayer.addTo(map);
+    });
+
+    updatePlaceholderMessage(item.leaflet._container.closest('.layout-item'));
+  }
+
+  function applySnapshotToAllMapItems() {
+    layoutState.items.filter(i => i.type === 'map' && i.leaflet).forEach(applySnapshotToMapItem);
+  }
+
+  // ---- Item de Legenda: gerada a partir das camadas visíveis do snapshot ----
+  function renderLegendContent(el, item) {
+    let rowsHtml = '';
+    if (item.autoUpdate) {
+      const visibleLayers = mapProjectState.layers.filter(l => l.visible && !l.isBasemap);
+      if (!visibleLayers.length) {
+        rowsHtml = '<div style="color:#888; font-style:italic;">' + (hasReceivedSnapshot ? 'Nenhuma camada visível.' : 'Aguardando dados…') + '</div>';
+      } else {
+        // Ordem QGIS: última adicionada/no topo da lista de camadas aparece primeiro na legenda
+        rowsHtml = visibleLayers.slice().reverse().map(l =>
+          '<div class="legend-row"><span class="legend-swatch" style="background:' + l.color + ';"></span><span>' + escapeHtml(l.name) + '</span></div>'
+        ).join('');
+      }
+    } else {
+      rowsHtml = '<div style="color:#888; font-style:italic;">Legenda manual (edite os itens nas propriedades).</div>';
+    }
+    el.innerHTML = '<div class="resize-handle br"></div><div class="legend-title">' + escapeHtml(item.title) + '</div>' + rowsHtml;
+  }
+
+  function refreshLegendItemsIfAuto() {
+    layoutState.items.filter(i => i.type === 'legend').forEach(item => {
+      const el = pageEl.querySelector('.layout-item[data-id="' + item.id + '"]');
+      if (el) renderLegendContent(el, item);
+    });
+  }
+
+  // ---- Arrastar/redimensionar itens no canvas ----
+  function makeItemInteractive(el, item) {
+    el.addEventListener('mousedown', (e) => {
+      if (activeTool !== 'select') return;
+      if (e.target.classList.contains('resize-handle')) return; // tratado abaixo
+      selectItem(item.id);
+      const startMouseX = e.clientX, startMouseY = e.clientY;
+      const startX = item.x, startY = item.y;
+      function onMove(ev) {
+        item.x = startX + (ev.clientX - startMouseX);
+        item.y = startY + (ev.clientY - startMouseY);
+        el.style.left = item.x + 'px';
+        el.style.top = item.y + 'px';
+      }
+      function onUp() {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        renderPropsPanel();
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      e.stopPropagation();
+    });
+
+    el.addEventListener('mousedown', (e) => {
+      if (!e.target.classList.contains('resize-handle')) return;
+      selectItem(item.id);
+      const startMouseX = e.clientX, startMouseY = e.clientY;
+      const startW = item.w, startH = item.h;
+      function onMove(ev) {
+        item.w = Math.max(30, startW + (ev.clientX - startMouseX));
+        item.h = Math.max(30, startH + (ev.clientY - startMouseY));
+        el.style.width = item.w + 'px';
+        el.style.height = item.h + 'px';
+        if (item.type === 'map' && item.leaflet) item.leaflet.invalidateSize();
+      }
+      function onUp() {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        renderPropsPanel();
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      e.stopPropagation();
+    });
+  }
+
+  pageEl.addEventListener('mousedown', (e) => {
+    if (e.target === pageEl && activeTool === 'select') selectItem(null);
+  });
+
+  // ---- Painel "Itens" ----
+  function renderItemsPanel() {
+    itemsListEl.innerHTML = '';
+    layoutState.items.slice().reverse().forEach(item => {
+      const li = document.createElement('li');
+      li.className = layoutState.selectedId === item.id ? 'selected' : '';
+      li.innerHTML = '<span class="item-name">' + itemLabel(item) + '</span>';
+      li.addEventListener('click', () => selectItem(item.id));
+      itemsListEl.appendChild(li);
+    });
+  }
+
+  // ---- Painel "Propriedades do item" ----
+  function renderPropsPanel() {
+    const item = getItem(layoutState.selectedId);
+    if (!item) {
+      itemPropsBody.innerHTML = '<div id="no-selection-msg">Nenhum item selecionado.</div>';
+      return;
+    }
+    let extra = '';
+    if (item.type === 'legend') {
+      extra = `
+        <div class="prop-row"><label>Título</label><input type="text" id="prop-legend-title" value="${escapeHtml(item.title)}"></div>
+        <div class="prop-row"><label>Atualização automática</label>
+          <select id="prop-legend-auto">
+            <option value="1" ${item.autoUpdate ? 'selected' : ''}>Sim (segue o mapa)</option>
+            <option value="0" ${!item.autoUpdate ? 'selected' : ''}>Não (manual)</option>
+          </select>
+        </div>`;
+    } else if (item.type === 'label') {
+      extra = `<div class="prop-row"><label>Texto</label><input type="text" id="prop-label-text" value="${escapeHtml(item.text)}"></div>`;
+    } else if (item.type === 'map') {
+      extra = `<div class="prop-row"><label>Extensão</label><span style="color:var(--text-dim); font-size:11px;">Independente do mapa principal — ajuste arrastando/dando zoom dentro do item.</span></div>`;
+    }
+    itemPropsBody.innerHTML = `
+      <div class="prop-row"><label>ID</label><span>${itemLabel(item)}</span></div>
+      <div class="prop-row"><label>X (px)</label><input type="number" id="prop-x" value="${Math.round(item.x)}"></div>
+      <div class="prop-row"><label>Y (px)</label><input type="number" id="prop-y" value="${Math.round(item.y)}"></div>
+      <div class="prop-row"><label>Largura (px)</label><input type="number" id="prop-w" value="${Math.round(item.w)}"></div>
+      <div class="prop-row"><label>Altura (px)</label><input type="number" id="prop-h" value="${Math.round(item.h)}"></div>
+      ${extra}
+      <button id="prop-delete-btn" style="margin-top:6px; padding:5px 10px; border:1px solid var(--panel-border); border-radius:3px; background:#fff; cursor:pointer;">Remover item</button>
+    `;
+    const bind = (id, prop, parse) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', () => {
+        item[prop] = parse(el.value);
+        renderPageItems();
+        if (item.type === 'map' && item.leaflet) item.leaflet.invalidateSize();
+      });
+    };
+    bind('prop-x', 'x', Number); bind('prop-y', 'y', Number);
+    bind('prop-w', 'w', Number); bind('prop-h', 'h', Number);
+    if (item.type === 'legend') {
+      bind('prop-legend-title', 'title', String);
+      document.getElementById('prop-legend-auto').addEventListener('change', (e) => {
+        item.autoUpdate = e.target.value === '1';
+        refreshLegendItemsIfAuto();
+      });
+    }
+    if (item.type === 'label') bind('prop-label-text', 'text', String);
+    document.getElementById('prop-delete-btn').addEventListener('click', () => deleteItem(item.id));
+  }
+
+  // ---- Ferramentas ainda não implementadas nesta simulação (só visual por enquanto) ----
+  // Mesmo padrão do mapa principal: ícone real no local certo da interface,
+  // toast avisando que a ação ainda não foi programada quando clicado.
+  document.querySelectorAll('.tool-btn.not-implemented').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const label = (btn.title || 'Esta ferramenta').trim();
+      toast(`"${label}" ainda não foi implementada nesta versão do protótipo.`, 3200);
+    });
+  });
+  document.querySelectorAll('.dropdown-arrow').forEach((arrow) => {
+    arrow.addEventListener('click', () => toast('Menu ainda não implementado nesta versão do protótipo.', 3200));
+  });
+
+  // ---- Exportação simples (imagem via captura do DOM não incluída aqui;
+  // ação de placeholder para não prometer algo que exigiria uma lib extra
+  // de captura de canvas/SVG que não estava no projeto original) ----
+  document.getElementById('tool-export-image').addEventListener('click', () => {
+    toast('Exportação como imagem: use a função de captura de tela do navegador ou integre uma lib como html2canvas para este botão.', 4000);
+  });
+  document.getElementById('tool-print').addEventListener('click', () => window.print());
+
+  renderAll();
+})();
+</script>
+</body>
+</html>

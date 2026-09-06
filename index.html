@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
 <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 <script src="https://unpkg.com/@mapbox/shp-write@latest/shpwrite.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
 <style>
   :root{
     --panel-bg:#f0f0f0;
@@ -494,6 +495,8 @@
     padding: 3px 6px; background:#f5f5f5; border-bottom:1px solid var(--panel-border);
     flex-shrink:0;
   }
+  #attr-toolbar .tool-btn { width:21px; height:21px; background-size:16px 16px; }
+  #attr-toolbar .toolbar-sep { height:14px; margin:0 3px; }
   #attr-table-wrap { flex:1; overflow:auto; }
   table#attr-table { border-collapse:collapse; width:100%; font-size:11.5px; }
   table#attr-table th {
@@ -598,6 +601,75 @@
   }
   #modal-actions button.primary { background: var(--accent); color:#fff; border-color: var(--accent-dark); }
 
+  /* ---------- Tela de boas-vindas (Projetos recentes) ---------- */
+  /* Cobre apenas a área do mapa (dentro de #map-wrap, que é position:relative) —
+     menu, barras de ferramentas e o painel "Camadas" continuam visíveis, como no QGIS. */
+  #welcome-screen {
+    display:none; position:absolute; inset:0; z-index:950;
+    background: var(--panel-bg);
+    flex-direction:row;
+  }
+  #welcome-screen.show { display:flex; }
+  #welcome-close {
+    position:absolute; top:10px; right:14px; z-index:2510;
+    background:none; border:none; font-size:16px; color:var(--text-dim);
+    cursor:pointer; line-height:1; padding:4px;
+  }
+  #welcome-close:hover { color:var(--text); }
+  .welcome-col {
+    display:flex; flex-direction:column; min-width:0;
+    padding:22px 26px; overflow-y:auto;
+  }
+  #welcome-recent-col { flex:1 1 58%; border-right:1px solid var(--panel-border); }
+  #welcome-new-col { flex:1 1 42%; }
+  .welcome-heading {
+    font-size:15px; font-weight:600; color:var(--text); margin-bottom:14px;
+  }
+  .welcome-empty {
+    color:var(--text-dim); font-size:12.5px; padding:14px 2px;
+  }
+  .welcome-card {
+    display:flex; align-items:stretch; gap:14px;
+    background:#fafafa; border:1px solid var(--panel-border); border-radius:4px;
+    padding:10px; margin-bottom:12px; cursor:pointer;
+    transition: box-shadow .12s ease, border-color .12s ease;
+  }
+  .welcome-card:hover { border-color: var(--accent); box-shadow:0 1px 6px rgba(0,0,0,0.12); }
+  .welcome-thumb {
+    flex:0 0 130px; width:130px; height:100px; border:1px solid var(--panel-border);
+    border-radius:3px; background:#fff repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 0 0/14px 14px;
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+  }
+  .welcome-thumb svg, .welcome-thumb canvas { width:100%; height:100%; display:block; }
+  .welcome-card-info { display:flex; flex-direction:column; justify-content:center; min-width:0; gap:2px; }
+  .welcome-card-name { font-size:13px; font-weight:600; color:var(--text); }
+  .welcome-card-path {
+    font-size:11px; color:#7aa0c4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .welcome-card-crs { font-size:11px; color:var(--text-dim); margin-top:2px; }
+  .welcome-card-actions { margin-left:auto; display:flex; align-items:center; }
+  .welcome-card-delete {
+    background:none; border:none; color:var(--text-dim); font-size:13px; cursor:pointer;
+    padding:4px 6px; border-radius:3px; visibility:hidden;
+  }
+  .welcome-card:hover .welcome-card-delete { visibility:visible; }
+  .welcome-card-delete:hover { color:#c0392b; background:rgba(192,57,43,0.1); }
+  .welcome-new-card {
+    display:flex; align-items:stretch; gap:14px;
+    background:#fafafa; border:1px solid var(--panel-border); border-radius:4px;
+    padding:10px; cursor:pointer; max-width:420px;
+    transition: box-shadow .12s ease, border-color .12s ease;
+  }
+  .welcome-new-card:hover { border-color: var(--accent); box-shadow:0 1px 6px rgba(0,0,0,0.12); }
+  .welcome-new-thumb {
+    flex:0 0 130px; width:130px; height:100px; border:1px dashed var(--panel-border);
+    border-radius:3px; background:#fff; display:flex; align-items:center; justify-content:center;
+    color:var(--panel-border); font-size:26px;
+  }
+  .welcome-new-info { display:flex; flex-direction:column; justify-content:center; gap:2px; }
+  .welcome-new-title { font-size:13px; font-weight:600; color:var(--text); }
+  .welcome-new-crs { font-size:11px; color:var(--text-dim); }
+
   /* ---------- Medição no mapa ---------- */
   #measure-result {
     position:absolute; top:10px; right:10px; z-index:900;
@@ -638,6 +710,41 @@
     background: #fffef2;
     color: var(--text);
   }
+  #crs-display {
+    cursor: pointer;
+    padding: 1px 5px;
+    border-radius: 2px;
+    border: 1px solid transparent;
+  }
+  #crs-display:hover {
+    background: #fff;
+    border-color: var(--panel-border);
+  }
+  #crs-picker-popover {
+    display:none;
+    position:fixed;
+    z-index:2000;
+    background:#fff;
+    border:1px solid #8a8a8a;
+    box-shadow:2px 3px 10px rgba(0,0,0,0.3);
+    padding:2px 0;
+    font-size:12px;
+    min-width:260px;
+    max-height:260px;
+    overflow-y:auto;
+  }
+  #crs-picker-popover.show { display:block; }
+  #crs-picker-popover .crs-picker-row {
+    display:flex; align-items:center; gap:8px;
+    padding:6px 10px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  #crs-picker-popover .crs-picker-row:hover { background: var(--hover); }
+  #crs-picker-popover .crs-picker-row.selected { background: var(--selected); font-weight:600; }
+  #crs-picker-popover .crs-picker-check { width:14px; flex-shrink:0; color: var(--accent-dark); }
+  #crs-picker-popover .crs-picker-label { flex:1; }
+  #crs-picker-popover .crs-picker-code { color: var(--text-dim); font-size:11px; }
 
   input[type=file] { display:none; }
 
@@ -1126,15 +1233,15 @@
     <div class="menu-item">
       Projeto
       <div class="menu-dropdown">
-        <div class="dd-item"><span class="dd-label">Novo</span><span class="dd-shortcut">Ctrl+N</span></div>
+        <div class="dd-item" id="menu-project-new"><span class="dd-label">Novo</span><span class="dd-shortcut">Ctrl+N</span></div>
         <div class="dd-item"><span class="dd-label">Novo a partir do modelo</span><span class="dd-arrow">▸</span></div>
         <div class="dd-item"><span class="dd-label">Abrir...</span><span class="dd-shortcut">Ctrl+O</span></div>
         <div class="dd-item"><span class="dd-label">Abrir do(a)</span><span class="dd-arrow">▸</span></div>
-        <div class="dd-item"><span class="dd-label">Abrir Recente</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item" id="menu-project-open-recent"><span class="dd-label">Abrir Recente</span><span class="dd-arrow">▸</span></div>
         <div class="dd-item disabled"><span class="dd-label">Fechar</span></div>
         <div class="dd-sep"></div>
-        <div class="dd-item"><span class="dd-label">Salvar</span><span class="dd-shortcut">Ctrl+S</span></div>
-        <div class="dd-item"><span class="dd-label">Salvar Como...</span><span class="dd-shortcut">Ctrl+Shift+S</span></div>
+        <div class="dd-item" id="menu-project-save"><span class="dd-label">Salvar</span><span class="dd-shortcut">Ctrl+S</span></div>
+        <div class="dd-item" id="menu-project-save-as"><span class="dd-label">Salvar Como...</span><span class="dd-shortcut">Ctrl+Shift+S</span></div>
         <div class="dd-item"><span class="dd-label">Salvar para</span><span class="dd-arrow">▸</span></div>
         <div class="dd-item disabled"><span class="dd-label">Reverter...</span></div>
         <div class="dd-sep"></div>
@@ -1281,12 +1388,12 @@
   <div id="toolbar">
     <div class="toolbar-group" data-toolbar="projectfile" style="display:flex;align-items:center;">
     <div class="drag-handle"></div>
-    <button class="tool-btn not-implemented" id="btn-new-project" title="Novo projeto" style="background-image:url('icons/mActionFileNew.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-open-project" title="Abrir projeto" style="background-image:url('icons/mActionFileOpen.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-save-project" title="Salvar projeto" style="background-image:url('icons/mActionFileSave.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-new-print-layout" title="Nova composição de impressão" style="background-image:url('icons/mActionNewLayout.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-project-props" title="Propriedades do projeto" style="background-image:url('icons/mActionProjectProperties.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-map-styles" title="Estilos de mapa" style="background-image:url('icons/mActionStyleManager.svg')"></button>
+    <button class="tool-btn" id="btn-new-project" title="Novo projeto" style="background-image:url('icons/mActionFileNew.svg')"></button>
+    <button class="tool-btn" id="btn-open-project" title="Início (projetos recentes)" style="background-image:url('icons/mActionFileOpen.svg')"></button>
+    <button class="tool-btn" id="btn-save-project" title="Salvar projeto" style="background-image:url('icons/mActionFileSave.svg')"></button>
+    <button class="tool-btn" id="btn-new-print-layout" title="Nova composição de impressão" style="background-image:url('icons/mActionNewLayout.svg')"></button>
+    <button class="tool-btn" id="btn-layout-manager" title="Gerenciador de Layouts" style="background-image:url('icons/mActionLayoutManager.svg')"></button>
+    <button class="tool-btn" id="btn-map-styles" disabled title="Estilos de mapa" style="background-image:url('icons/mActionStyleManager.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
@@ -1389,7 +1496,6 @@
     <div class="toolbar-group" data-toolbar="digitizing" style="display:flex;align-items:center;">
     <button class="tool-btn" id="btn-toggle-edit" disabled title="Alternar modo de edição de atributos" style="background-image:url('icons/mActionToggleEditing.svg')"></button>
     <button class="tool-btn" id="btn-save-edits-tb" disabled title="Salvar edições na camada" style="background-image:url('icons/mActionSaveEdits.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-save-edits-as" title="Salvar edições como" style="background-image:url('icons/mActionSaveEdits.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-all-edits" title="Edições atuais (todas as camadas)" style="background-image:url('icons/mActionAllEdits.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     <div class="toolbar-sep"></div>
@@ -1398,7 +1504,7 @@
     <button class="tool-btn" id="btn-draw-polygon" disabled title="Adicionar feição de polígono" style="background-image:url('icons/mActionRegularPolygonCenterPoint.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     <button class="tool-btn" id="btn-add-feature-tb" disabled title="Adicionar registro/feição na camada selecionada" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-delete-selected" title="Excluir feições selecionadas" style="background-image:url('icons/mActionDeleteSelectedFeatures.svg')"></button>
+    <button class="tool-btn" id="btn-delete-selected" disabled title="Excluir feições selecionadas" style="background-image:url('icons/mActionDeleteSelectedFeatures.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-cut-features" title="Recortar feições" style="background-image:url('icons/mActionEditCut.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-copy-features-tb" title="Copiar feições" style="background-image:url('icons/mActionEditCopy.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-paste-features-tb" title="Colar feições" style="background-image:url('icons/mActionEditPaste.svg')"></button>
@@ -1573,6 +1679,27 @@
     <div id="map-wrap">
       <div id="map"></div>
       <div id="measure-result"></div>
+
+      <!-- ================= Tela de boas-vindas: Projetos recentes ================= -->
+      <!-- Fica dentro de #map-wrap (não cobre toda a tela): menu, barras de ferramentas
+           e o painel "Camadas" continuam visíveis atrás dela, igual ao QGIS real. -->
+      <div id="welcome-screen">
+        <button id="welcome-close" title="Fechar (voltar ao projeto atual)">✕</button>
+        <div id="welcome-recent-col" class="welcome-col">
+          <div class="welcome-heading">Projetos recentes</div>
+          <div id="welcome-recent-list"></div>
+        </div>
+        <div id="welcome-new-col" class="welcome-col">
+          <div class="welcome-heading">Novo projeto</div>
+          <div class="welcome-new-card" id="welcome-new-project-card">
+            <div class="welcome-new-thumb">＋</div>
+            <div class="welcome-new-info">
+              <div class="welcome-new-title">Novo Projeto Vazio</div>
+              <div class="welcome-new-crs" id="welcome-new-crs-label">EPSG:4326 - WGS 84</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1601,7 +1728,7 @@
     <div class="dd-item disabled"><span class="dd-label" style="padding-left:0">Visibilidade baseada na escala</span></div>
     <div class="dd-item dd-submenu">
       <span class="dd-label" style="padding-left:0">SRC da camada</span><span class="dd-arrow">▸</span>
-      <div class="menu-dropdown"></div>
+      <div class="menu-dropdown" id="ctx-crs-submenu"></div>
     </div>
     <div class="dd-sep"></div>
     <div class="dd-item dd-submenu">
@@ -1916,6 +2043,9 @@
   <!-- Popover de lista: Estilo do traço -->
   <div id="line-style-list-popover"></div>
 
+  <!-- Popover de lista: Seletor de CRS do projeto (aberto ao clicar em "CRS:" na barra de status) -->
+  <div id="crs-picker-popover"></div>
+
   <div id="attr-panel" class="collapsed">
     <div id="attr-resize-handle" title="Arraste para redimensionar"></div>
     <div id="attr-header">
@@ -1927,12 +2057,35 @@
       </div>
     </div>
     <div id="attr-toolbar">
-      <button class="tool-label-btn has-icon" id="btn-toggle-edit-2" title="Alternar modo de edição" style="background-image:url('icons/mActionToggleEditing.svg')">✎ Alternar edição</button>
+      <button class="tool-btn" id="btn-toggle-edit-2" title="Alternar modo de edição" style="background-image:url('icons/mActionToggleEditing.svg')"></button>
+      <button class="tool-btn" id="btn-toggle-multiedit" disabled title="Alternar modo multi edição" style="background-image:url('icons/mActionMultiEdit.svg')"></button>
+      <button class="tool-btn" id="btn-save-edits" disabled title="Salvar Edições" style="background-image:url('icons/mActionSaveEdits.svg')"></button>
+      <button class="tool-btn" id="btn-reload-table" title="Recarregar a tabela" style="background-image:url('icons/mActionRefresh.svg')"></button>
       <div class="toolbar-sep"></div>
-      <button class="tool-label-btn has-icon" id="btn-add-field" disabled title="Adicionar novo campo (coluna)" style="background-image:url('icons/mActionCalculateField.svg')">➕ Campo</button>
-      <button class="tool-label-btn has-icon" id="btn-add-feature" disabled title="Adicionar nova feição (linha)" style="background-image:url('icons/mActionCapturePoint.svg')">➕ Feição</button>
+      <button class="tool-btn" id="btn-add-feature" disabled title="Adicionar feição" style="background-image:url('icons/mActionNewTableRow.svg')"></button>
+      <button class="tool-btn" id="btn-add-feature-attr-table" disabled title="Add feature via attribute table" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
+      <button class="tool-btn" id="btn-delete-selected-features" disabled title="Excluir feições selecionadas" style="background-image:url('icons/mActionDeleteSelectedFeatures.svg')"></button>
+      <button class="tool-btn" id="btn-cut-features-attr" disabled title="Cortar feições selecionadas para área de transferência" style="background-image:url('icons/mActionEditCut.svg')"></button>
+      <button class="tool-btn" id="btn-copy-features-attr" disabled title="Copiar feições selecionadas para a área de transferência" style="background-image:url('icons/mActionEditCopy.svg')"></button>
+      <button class="tool-btn" id="btn-paste-features-attr" disabled title="Colar feições da área de transferência" style="background-image:url('icons/mActionEditPaste.svg')"></button>
       <div class="toolbar-sep"></div>
-      <button class="tool-label-btn has-icon" id="btn-save-edits" disabled title="Salvar edições na camada" style="background-image:url('icons/mActionSaveEdits.svg')">💾 Salvar edições</button>
+      <button class="tool-btn" id="btn-select-expression" disabled title="Selecionar feições usando uma expressão" style="background-image:url('icons/mIconExpressionSelect.svg')"></button>
+      <button class="tool-btn" id="btn-select-all-features" disabled title="Selecionar Todas" style="background-image:url('icons/mActionSelectAll.svg')"></button>
+      <button class="tool-btn" id="btn-invert-selection-attr" disabled title="Seleção invertida" style="background-image:url('icons/mActionInvertSelection.svg')"></button>
+      <button class="tool-btn" id="btn-deselect-all-attr" disabled title="Desselecionar todas" style="background-image:url('icons/mActionDeselectAll.svg')"></button>
+      <button class="tool-btn" id="btn-filter-form" disabled title="Filtrar/Selecionar feições usando formulário" style="background-image:url('icons/mActionFilter2.svg')"></button>
+      <button class="tool-btn" id="btn-move-selection-top" disabled title="Mover selecionadas para o topo" style="background-image:url('icons/mActionSelectedToTop.svg')"></button>
+      <button class="tool-btn" id="btn-pan-to-sel-attr" disabled title="Mapa panorâmico para selecionar linhas" style="background-image:url('icons/mActionPan.svg')"></button>
+      <button class="tool-btn" id="btn-zoom-to-sel-attr" disabled title="Aproximar mapa para selecionar linhas" style="background-image:url('icons/mActionZoomToSelected.svg')"></button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" id="btn-add-field" disabled title="Novo campo" style="background-image:url('icons/mActionNewAttribute.svg')"></button>
+      <button class="tool-btn" id="btn-delete-field" disabled title="Excluir campo" style="background-image:url('icons/mActionDeleteAttribute.svg')"></button>
+      <button class="tool-btn" id="btn-organize-columns" disabled title="Organizar colunas" style="background-image:url('icons/mActionFilterTableFields.svg')"></button>
+      <button class="tool-btn" id="btn-field-calculator" disabled title="Abrir calculadora de campo" style="background-image:url('icons/mActionCalculateField.svg')"></button>
+      <button class="tool-btn" id="btn-conditional-formatting" disabled title="Formatação condicional" style="background-image:url('icons/mActionConditionalFormatting.svg')"></button>
+      <button class="tool-btn" id="btn-attr-table-dock" disabled title="Tabela de Atributos do Dock" style="background-image:url('icons/mActionOpenTable.svg')"></button>
+      <button class="tool-btn" id="btn-attr-actions" disabled title="Actions" style="background-image:url('icons/mActionPropertiesWidget.svg')"></button>
+      <div class="toolbar-sep"></div>
     </div>
     <div id="attr-table-wrap">
       <div id="attr-empty">Selecione uma camada para ver seus atributos.</div>
@@ -2024,6 +2177,7 @@
       ctxMenu.style.left = x + 'px';
       ctxMenu.style.top = y + 'px';
       ctxMenu.classList.add('show');
+      populateCrsSubmenu();
     });
 
     document.addEventListener('click', (e) => {
@@ -2036,6 +2190,65 @@
 
     function closeCtxMenu() { ctxMenu.classList.remove('show'); }
     function getActiveLayer() { return state.layers.find(l => l.id === state.selectedLayerId); }
+
+    // Preenche o submenu "SRC da camada" com as opções do catálogo, mais duas ações
+    // rápidas de sincronização entre o SRC da camada e o SRC do projeto (CRS_CATALOG e
+    // setProjectCrs só existem a partir do bloco de estado/mapa, mais abaixo no script,
+    // mas como isso roda dentro de um listener disparado após toda a página carregar,
+    // ambos já estão disponíveis nesse momento).
+    function populateCrsSubmenu() {
+      const submenu = document.getElementById('ctx-crs-submenu');
+      if (!submenu) return;
+      const layer = getActiveLayer();
+      const currentCrs = layer ? (layer.crs || DEFAULT_CRS) : null;
+      const isApplicable = layer && !layer.isBasemap;
+
+      const actionsHtml = `
+        <div class="dd-item${isApplicable ? '' : ' disabled'}" id="ctx-crs-set-project-from-layer">
+          <span class="dd-label">Definir SRC do projeto a partir da camada</span>
+        </div>
+        <div class="dd-item${isApplicable ? '' : ' disabled'}" id="ctx-crs-set-layer-from-project">
+          <span class="dd-label">Definir SRC da camada a partir do projeto</span>
+        </div>
+        <div class="dd-sep"></div>
+      `;
+      const listHtml = Object.values(CRS_CATALOG).map(def => {
+        const isChecked = isApplicable && def.authid === currentCrs;
+        return `<div class="dd-item${isApplicable ? '' : ' disabled'}" data-crs="${def.authid}">
+          <span class="dd-label">${isChecked ? '● ' : ''}${def.label} — ${def.authid}</span>
+        </div>`;
+      }).join('');
+      submenu.innerHTML = actionsHtml + listHtml;
+      if (!isApplicable) return;
+
+      document.getElementById('ctx-crs-set-project-from-layer').addEventListener('click', () => {
+        const activeLayer = getActiveLayer();
+        if (!activeLayer) return;
+        closeCtxMenu();
+        setProjectCrs(activeLayer.crs || DEFAULT_CRS);
+      });
+      document.getElementById('ctx-crs-set-layer-from-project').addEventListener('click', () => {
+        const activeLayer = getActiveLayer();
+        if (!activeLayer) return;
+        activeLayer.crs = state.projectCrs;
+        closeCtxMenu();
+        toast(`SRC da camada "${activeLayer.name}" definido como ${CRS_CATALOG[activeLayer.crs].label} (a partir do projeto).`);
+        renderAttributeTable();
+        scheduleAutosave();
+      });
+
+      submenu.querySelectorAll('.dd-item[data-crs]').forEach(item => {
+        item.addEventListener('click', () => {
+          const activeLayer = getActiveLayer();
+          if (!activeLayer) return;
+          activeLayer.crs = item.dataset.crs;
+          closeCtxMenu();
+          toast(`SRC da camada "${activeLayer.name}" definido como ${CRS_CATALOG[activeLayer.crs].label}.`);
+          renderAttributeTable();
+          scheduleAutosave();
+        });
+      });
+    }
 
     // ---- Aproximar para camada(s): zoom na extensão total da camada ----
     document.getElementById('ctx-zoom-layer').addEventListener('click', () => {
@@ -2234,15 +2447,139 @@
     }
   })();
 
+  // ---------------- Catálogo de Sistemas de Referência de Coordenadas (CRS) ----------------
+  // Definições Proj4 para os SRCs disponíveis no protótipo. Os dados internos (GeoJSON das
+  // camadas importadas e o próprio Leaflet) sempre trabalham em WGS 84 lat/lon (EPSG:4326);
+  // este catálogo serve só para REPROJETAR coordenadas na hora de exibi-las (barra de status
+  // e tabela de atributos), sem alterar a geometria original das camadas.
+  const CRS_CATALOG = {
+    'EPSG:4326': {
+      label: 'WGS 84',
+      authid: 'EPSG:4326',
+      proj4: '+proj=longlat +datum=WGS84 +no_defs',
+      axis: 'lonlat', // ordem dos eixos ao exibir: longitude/X primeiro, depois latitude/Y
+    },
+    'EPSG:4674': {
+      label: 'SIRGAS 2000',
+      authid: 'EPSG:4674',
+      proj4: '+proj=longlat +ellps=GRS80 +no_defs',
+      axis: 'lonlat',
+    },
+    'EPSG:31984': {
+      label: 'SIRGAS 2000 / UTM zone 24S',
+      authid: 'EPSG:31984',
+      proj4: '+proj=utm +zone=24 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+      axis: 'xy', // UTM: Este (X) e Norte (Y), em metros
+    },
+    'EPSG:31985': {
+      label: 'SIRGAS 2000 / UTM zone 25S',
+      authid: 'EPSG:31985',
+      proj4: '+proj=utm +zone=25 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+      axis: 'xy',
+    },
+  };
+  // Registra cada definição no proj4 (necessário antes de usar proj4('EPSG:xxxx', ...)).
+  // EPSG:4326 já vem embutido no proj4js por padrão, mas registrar de novo não tem custo.
+  Object.values(CRS_CATALOG).forEach(def => proj4.defs(def.authid, def.proj4));
+
+  const DEFAULT_CRS = 'EPSG:4326';
+
+  // Reprojeta um par [lon, lat] (sempre em WGS84, como o Leaflet fornece) para o CRS pedido.
+  // Retorna { x, y } já na ordem/unidade correta para exibição (metros para UTM, graus para
+  // sistemas geográficos). Em caso de erro de projeção (ex.: ponto fora do domínio válido da
+  // zona UTM), retorna null para o chamador decidir como exibir a falha.
+  function reprojectLonLat(lon, lat, targetCrsCode) {
+    const def = CRS_CATALOG[targetCrsCode] || CRS_CATALOG[DEFAULT_CRS];
+    try {
+      if (def.authid === 'EPSG:4326') return { x: lon, y: lat, def };
+      const [x, y] = proj4('EPSG:4326', def.authid, [lon, lat]);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x, y, def };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Formata { x, y } de reprojectLonLat como texto de exibição, respeitando a convenção de
+  // cada família de CRS: graus com 5 casas decimais para geográficos, metros com 2 casas
+  // (e separador de milhar) para projetados (UTM).
+  function formatReprojectedCoords(result) {
+    if (!result) return '(fora da área válida)';
+    const { x, y, def } = result;
+    if (def.axis === 'lonlat') {
+      return `Lat: ${y.toFixed(5)}, Lon: ${x.toFixed(5)}`;
+    }
+    const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `E: ${fmt(x)}, N: ${fmt(y)}`;
+  }
+
   // ---------------- Estado ----------------
   const state = {
     map: null,
-    layers: [],       // { id, name, geojson, leafletLayer, color, visible, editedRows:Set, dirty:bool, selectedFeatures:Set }
+    layers: [],       // { id, name, geojson, leafletLayer, color, visible, editedRows:Set, dirty:bool, selectedFeatures:Set, crs:string }
     selectedLayerId: null,
     nextId: 1,
     editMode: false,
     selectFeatureMode: false, // true enquanto a ferramenta "Selecionar feição" está ativa
+    projectCrs: DEFAULT_CRS,  // CRS usado para exibir coordenadas na barra de status
+    currentProjectId: null,   // id do projeto atualmente aberto (null = novo projeto, nunca salvo)
+    currentProjectName: null, // nome do projeto atualmente aberto
+    featureClipboard: [],     // feições copiadas/recortadas (Ctrl+C / Ctrl+X) prontas para colar
   };
+
+  // ---------------- Sincronização com janela(s) de Layout de Impressão ----------------
+  // Canal estritamente unidirecional: o mapa principal É a fonte da verdade e transmite
+  // seu estado (camadas, visibilidade, simbologia, CRS) para qualquer janela de layout
+  // aberta. O layout NUNCA escreve de volta aqui — sua extensão/zoom de mapa e a
+  // composição da página são inteiramente locais àquela janela, exatamente como no
+  // QGIS desktop (o item de mapa do Compositor não altera o canvas principal).
+  const LAYOUT_SYNC_CHANNEL = 'qgis-layout-sync';
+  const layoutSyncChannel = ('BroadcastChannel' in window) ? new BroadcastChannel(LAYOUT_SYNC_CHANNEL) : null;
+  let layoutSyncTimer = null;
+
+  // Snapshot leve e serializável do estado que o layout precisa para desenhar as
+  // camadas: geometria, visibilidade, cor/simbologia e CRS. Não inclui nada de UI
+  // do mapa principal (seleção de feição, modo de edição etc.) pois o layout não
+  // deve refletir isso.
+  function buildLayoutSyncSnapshot() {
+    return {
+      projectCrs: state.projectCrs,
+      layers: state.layers.map(l => ({
+        id: l.id,
+        name: l.name,
+        color: l.color,
+        visible: l.visible,
+        isBasemap: l.isBasemap || false,
+        basemapKind: l.basemapKind || null,
+        crs: l.crs || DEFAULT_CRS,
+        symbology: l.symbology || null,
+        fillOpacityPct: l.fillOpacityPct,
+        geojson: l.geojson,
+      })),
+    };
+  }
+
+  // Debounced: evita mandar um snapshot completo a cada tecla digitada durante uma
+  // edição de geometria em série, por exemplo. 150ms é imperceptível para quem está
+  // olhando a janela de layout, mas evita centenas de postMessage por segundo.
+  function broadcastLayoutSync() {
+    if (!layoutSyncChannel) return;
+    clearTimeout(layoutSyncTimer);
+    layoutSyncTimer = setTimeout(() => {
+      layoutSyncChannel.postMessage({ type: 'layout-sync-snapshot', snapshot: buildLayoutSyncSnapshot() });
+    }, 150);
+  }
+
+  // Quando uma nova janela de layout abre, ela pede um snapshot imediato (não quer
+  // esperar a próxima mudança de camada para ver algo na tela).
+  if (layoutSyncChannel) {
+    layoutSyncChannel.onmessage = (ev) => {
+      const msg = ev.data;
+      if (msg && msg.type === 'layout-sync-request') {
+        layoutSyncChannel.postMessage({ type: 'layout-sync-snapshot', snapshot: buildLayoutSyncSnapshot() });
+      }
+    };
+  }
 
   // ---------------- Cor de camada: reproduz o QGIS (QgsLimitedRandomColorRamp) ----------------
   // O QGIS sorteia uma cor aleatória por camada nova dentro de faixas HSV fixas
@@ -2311,9 +2648,164 @@
   state.map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.25 }).setView([-9.7, -36.0], 7); // Alagoas como default
 
   state.map.on('mousemove', (e) => {
-    document.getElementById('coord-display').textContent =
-      `Lat: ${e.latlng.lat.toFixed(5)}, Lon: ${e.latlng.lng.toFixed(5)}`;
+    const result = reprojectLonLat(e.latlng.lng, e.latlng.lat, state.projectCrs);
+    document.getElementById('coord-display').textContent = formatReprojectedCoords(result);
   });
+
+  // Atualiza o rótulo "CRS: ..." da barra de status conforme o CRS do projeto selecionado.
+  function updateProjectCrsDisplay() {
+    const def = CRS_CATALOG[state.projectCrs] || CRS_CATALOG[DEFAULT_CRS];
+    const el = document.getElementById('crs-display');
+    if (el) el.textContent = `CRS: ${def.label} (${def.authid})`;
+  }
+  updateProjectCrsDisplay();
+
+  // Ponto único que troca o CRS do projeto — usado pelo modal de Propriedades do Projeto,
+  // pelo popover da barra de status e pela ação "Definir SRC do projeto a partir da camada"
+  // do menu de contexto de camada.
+  function setProjectCrs(code, { silent = false } = {}) {
+    if (!CRS_CATALOG[code]) return;
+    state.projectCrs = code;
+    updateProjectCrsDisplay();
+    if (!silent) toast(`SRC do projeto definido como ${CRS_CATALOG[code].label}.`);
+    scheduleAutosave();
+  }
+
+  // ---------------- Propriedades do Projeto: CRS do projeto ----------------
+  // Modal simples (reaproveita openModal) para trocar o SRC usado na exibição de
+  // coordenadas na barra de status. Não reprojeta as camadas em si — apenas a leitura
+  // de coordenadas do mouse, igual à aba "SRC" das Propriedades do Projeto no QGIS real.
+  function buildCrsOptionsHtml(selectedCode) {
+    return Object.values(CRS_CATALOG).map(def =>
+      `<option value="${def.authid}" ${def.authid === selectedCode ? 'selected' : ''}>${def.label} — ${def.authid}</option>`
+    ).join('');
+  }
+
+  // Diálogo de SRC do projeto, aberto pelo item de menu "Projeto ▸ Propriedades...".
+  function openProjectPropertiesDialog() {
+    const bodyHtml = `
+      <label>Sistema de Referência de Coordenadas (SRC) do projeto
+        <select id="project-crs-select">${buildCrsOptionsHtml(state.projectCrs)}</select>
+      </label>
+      <div style="font-size:11.5px; color:var(--text-dim); line-height:1.5;">
+        Define em qual SRC as coordenadas do cursor são exibidas na barra de status.
+        Não altera a geometria das camadas já importadas.
+      </div>
+    `;
+    openModal('Propriedades do Projeto — SRC', bodyHtml, () => {
+      const select = document.getElementById('project-crs-select');
+      setProjectCrs(select.value);
+    });
+  }
+
+  Array.from(document.querySelectorAll('#menubar .menu-dropdown .dd-item')).forEach(item => {
+    if (item.textContent.trim().startsWith('Propriedades...')) {
+      item.addEventListener('click', openProjectPropertiesDialog);
+    }
+  });
+
+  // Gerenciador de Layouts: lista as composições de impressão salvas no projeto.
+  // Como a criação de layouts de impressão ainda não está implementada nesta simulação
+  // (ver btn-new-print-layout), a lista fica sempre vazia por enquanto.
+  function openLayoutManagerDialog() {
+    const confirmBtn = document.getElementById('modal-confirm');
+    const cancelBtn = document.getElementById('modal-cancel');
+    const bodyHtml = `
+      <div id="layout-manager-list" style="min-height:80px; border:1px solid var(--panel-border); border-radius:3px; background:#fff; padding:10px; font-size:12px; color:var(--text-dim); display:flex; align-items:center; justify-content:center; text-align:center;">
+        Nenhum layout de impressão criado neste projeto.
+      </div>
+      <div style="font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-top:8px;">
+        Layouts de impressão permitem montar mapas para exportação em PDF ou imagem, com legenda, escala e outros elementos.
+      </div>
+    `;
+    openModal('Gerenciador de Layouts', bodyHtml, () => {});
+    // Esse diálogo é só de consulta — sem ação a "aplicar" — então o botão principal
+    // vira "Fechar" e o "Cancelar" fica escondido para não duplicar a mesma ação.
+    confirmBtn.textContent = 'Novo Layout...';
+    cancelBtn.textContent = 'Fechar';
+    confirmBtn.addEventListener('click', () => {
+      toast('Criação de layouts de impressão ainda não implementada nesta simulação.');
+    });
+  }
+
+  document.getElementById('btn-layout-manager').addEventListener('click', openLayoutManagerDialog);
+
+  // ---- Abre o Layout de Impressão em uma nova ABA do navegador ----
+  // Sem o terceiro argumento (features de janela como width/height), window.open
+  // abre em nova aba na mesma janela do sistema operacional — o mesmo que o
+  // usuário faria com Ctrl+clique num link. Sincronizada via BroadcastChannel:
+  // veja "Sincronização com janela(s) de Layout de Impressão" mais acima
+  // (funciona da mesma forma entre abas ou entre janelas separadas).
+  let printLayoutWindowCount = 0;
+  function openNewPrintLayoutWindow() {
+    if (!('BroadcastChannel' in window)) {
+      toast('Seu navegador não tem suporte a BroadcastChannel — a aba de layout não conseguiria se sincronizar com o mapa.', 4200);
+      return;
+    }
+    printLayoutWindowCount += 1;
+    const w = window.open('layout.html', 'qgis_layout_' + printLayoutWindowCount);
+    if (!w) {
+      toast('A aba do Layout de Impressão foi bloqueada pelo navegador. Permita pop-ups para este site e tente novamente.', 4200);
+      return;
+    }
+    toast('Layout de impressão aberto em nova aba.');
+  }
+  document.getElementById('btn-new-print-layout').addEventListener('click', openNewPrintLayoutWindow);
+
+  Array.from(document.querySelectorAll('#menubar .menu-dropdown .dd-item')).forEach(item => {
+    const label = item.textContent.trim();
+    if (label.startsWith('Gerenciador de Layout')) {
+      item.addEventListener('click', openLayoutManagerDialog);
+    }
+  });
+
+  // ---------------- Seletor rápido de CRS do projeto (clique em "CRS: ..." na barra de status) ----------------
+  // Popover de lista, igual ao estilo dos outros seletores do protótipo (estilo do
+  // preenchimento, estilo do traço): clique abre, clique numa opção já aplica e fecha.
+  (function initCrsPickerPopover() {
+    const crsDisplayEl = document.getElementById('crs-display');
+    const popover = document.getElementById('crs-picker-popover');
+    if (!crsDisplayEl || !popover) return;
+
+    function buildPopover() {
+      popover.innerHTML = Object.values(CRS_CATALOG).map(def => {
+        const isSelected = def.authid === state.projectCrs;
+        return `<div class="crs-picker-row${isSelected ? ' selected' : ''}" data-crs="${def.authid}">
+          <span class="crs-picker-check">${isSelected ? '✓' : ''}</span>
+          <span class="crs-picker-label">${def.label}</span>
+          <span class="crs-picker-code">${def.authid}</span>
+        </div>`;
+      }).join('');
+      popover.querySelectorAll('.crs-picker-row').forEach(row => {
+        row.addEventListener('click', () => {
+          setProjectCrs(row.dataset.crs);
+          popover.classList.remove('show');
+        });
+      });
+    }
+
+    crsDisplayEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      buildPopover();
+      const rect = crsDisplayEl.getBoundingClientRect();
+      const popW = 260;
+      let left = rect.left;
+      if (left + popW > window.innerWidth) left = window.innerWidth - popW - 8;
+      popover.style.left = left + 'px';
+      popover.style.top = 'auto';
+      popover.style.bottom = (window.innerHeight - rect.top + 4) + 'px'; // abre para cima, já que a barra de status fica embaixo
+      popover.classList.add('show');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (popover.classList.contains('show') && !popover.contains(e.target) && e.target !== crsDisplayEl) {
+        popover.classList.remove('show');
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') popover.classList.remove('show');
+    });
+  })();
 
   // ---------------- Escala do mapa (estilo QGIS: campo editável "1:N") ----------------
   // O QGIS calcula a escala real a partir da resolução (metros/pixel) no centro
@@ -2676,14 +3168,26 @@
   state.drawTool = null; // 'point' | 'polygon' | 'line' | null
   state.measureTool = { active: false, points: [], layer: null };
 
-  // ---------------- Persistência local (autosave) ----------------
-  const AUTOSAVE_KEY = 'qgis-web-prototipo:projeto';
+  // ---------------- Persistência local (múltiplos projetos + autosave) ----------------
+  // Cada projeto nomeado tem uma entrada de metadados no índice (PROJECTS_INDEX_KEY) e
+  // um snapshot completo dos dados sob sua própria chave (PROJECT_DATA_PREFIX + id).
+  // Não há mais uma única chave de autosave global: o autosave grava sempre no projeto
+  // atualmente aberto (state.currentProjectId), e só entra no índice de recentes depois
+  // do primeiro "Salvar"/"Salvar como" (evita poluir a lista com rascunhos vazios).
+  const PROJECTS_INDEX_KEY = 'qgis-web-prototipo:projetos-index';
+  const PROJECT_DATA_PREFIX = 'qgis-web-prototipo:projeto:';
   let autosaveTimer = null;
+  // true assim que o usuário escolhe um projeto (novo vazio ou recente) pela primeira vez
+  // nesta sessão. Usado só para permitir que o "✕" da tela de boas-vindas feche de volta
+  // ao editor sem exigir currentProjectId (um projeto novo, nunca salvo, ainda é "algo em
+  // edição" válido para voltar).
+  let hasOpenedAProjectThisSession = false;
 
   function serializeProject() {
     return {
       version: 1,
       savedAt: new Date().toISOString(),
+      projectCrs: state.projectCrs,
       layers: state.layers.map(l => ({
         name: l.name,
         color: l.color,
@@ -2691,10 +3195,143 @@
         geojson: l.geojson,
         isBasemap: l.isBasemap || false,
         basemapKind: l.basemapKind || null,
+        crs: l.crs || DEFAULT_CRS,
       })),
       selectedLayerId: state.selectedLayerId,
       nextId: state.nextId,
     };
+  }
+
+  // ---------------- Índice de projetos ----------------
+  function readProjectsIndex() {
+    try {
+      const raw = localStorage.getItem(PROJECTS_INDEX_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (e) { return []; }
+  }
+
+  function writeProjectsIndex(list) {
+    try { localStorage.setItem(PROJECTS_INDEX_KEY, JSON.stringify(list)); }
+    catch (e) { console.error('Falha ao gravar índice de projetos:', e); }
+  }
+
+  function genProjectId() {
+    return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  // Gera um "caminho" simulado, no estilo do QGIS desktop, para dar a sensação de
+  // arquivo real (o protótipo não tem sistema de arquivos, então isso é só cosmético).
+  function simulatedProjectPath(name) {
+    return `C:/Users/usuario/Documents/QGIS/${name}.qgz`;
+  }
+
+  // Desenha uma miniatura real (SVG) das camadas do projeto: projeta os pontos das
+  // geometrias proporcionalmente ao bounding box conjunto, sem depender de captura de
+  // tela do mapa Leaflet. Fiel o suficiente ao estilo "silhueta colorida das camadas".
+  function renderProjectThumbnail(layers) {
+    const W = 260, H = 200;
+    const drawable = (layers || []).filter(l => l.geojson && l.geojson.features && l.geojson.features.length);
+    if (!drawable.length) {
+      return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#ffffff"/></svg>`;
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const walkCoords = (coords, depth) => {
+      if (depth === 0) {
+        const [x, y] = coords;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      } else {
+        coords.forEach(c => walkCoords(c, depth - 1));
+      }
+    };
+    const depthForType = (t) => ({ Point: 0, MultiPoint: 1, LineString: 1, MultiLineString: 2, Polygon: 2, MultiPolygon: 3 }[t]);
+
+    drawable.forEach(l => {
+      l.geojson.features.forEach(f => {
+        if (!f.geometry) return;
+        const d = depthForType(f.geometry.type);
+        if (d == null) return;
+        try { walkCoords(f.geometry.coordinates, d); } catch (e) {}
+      });
+    });
+
+    if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+      return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#ffffff"/></svg>`;
+    }
+    const spanX = (maxX - minX) || 1;
+    const spanY = (maxY - minY) || 1;
+    const pad = 10;
+    const scale = Math.min((W - pad * 2) / spanX, (H - pad * 2) / spanY);
+    const offX = pad + ((W - pad * 2) - spanX * scale) / 2;
+    const offY = pad + ((H - pad * 2) - spanY * scale) / 2;
+    // Y invertido: coordenadas geográficas crescem para cima, SVG cresce para baixo.
+    const proj = ([x, y]) => [offX + (x - minX) * scale, H - (offY + (y - minY) * scale)];
+
+    let svgParts = [`<rect width="${W}" height="${H}" fill="#ffffff"/>`];
+
+    const ptToPath = (coords, type, close) => {
+      const pts = coords.map(proj);
+      return pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ') + (close ? ' Z' : '');
+    };
+
+    drawable.forEach(l => {
+      const color = l.color || '#3388cc';
+      l.geojson.features.forEach(f => {
+        if (!f.geometry) return;
+        const { type, coordinates } = f.geometry;
+        try {
+          if (type === 'Point') {
+            const [x, y] = proj(coordinates);
+            svgParts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.2" fill="${color}" fill-opacity="0.85"/>`);
+          } else if (type === 'MultiPoint') {
+            coordinates.forEach(c => {
+              const [x, y] = proj(c);
+              svgParts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.2" fill="${color}" fill-opacity="0.85"/>`);
+            });
+          } else if (type === 'LineString') {
+            svgParts.push(`<path d="${ptToPath(coordinates, type, false)}" fill="none" stroke="${color}" stroke-width="1.4"/>`);
+          } else if (type === 'MultiLineString') {
+            coordinates.forEach(line => svgParts.push(`<path d="${ptToPath(line, type, false)}" fill="none" stroke="${color}" stroke-width="1.4"/>`));
+          } else if (type === 'Polygon') {
+            const d = coordinates.map(ring => ptToPath(ring, type, true)).join(' ');
+            svgParts.push(`<path d="${d}" fill="${color}" fill-opacity="0.55" stroke="${color}" stroke-width="1" fill-rule="evenodd"/>`);
+          } else if (type === 'MultiPolygon') {
+            coordinates.forEach(poly => {
+              const d = poly.map(ring => ptToPath(ring, type, true)).join(' ');
+              svgParts.push(`<path d="${d}" fill="${color}" fill-opacity="0.55" stroke="${color}" stroke-width="1" fill-rule="evenodd"/>`);
+            });
+          }
+        } catch (e) { /* geometria malformada — ignora essa feição na miniatura */ }
+      });
+    });
+
+    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${svgParts.join('')}</svg>`;
+  }
+
+  // Cria ou atualiza a entrada de metadados de state.currentProjectId no índice.
+  function upsertProjectIndexEntry() {
+    if (!state.currentProjectId) return;
+    const list = readProjectsIndex();
+    const idx = list.findIndex(p => p.id === state.currentProjectId);
+    const crsDef = CRS_CATALOG[state.projectCrs] || CRS_CATALOG[DEFAULT_CRS];
+    const entry = {
+      id: state.currentProjectId,
+      name: state.currentProjectName || 'Projeto sem título',
+      path: simulatedProjectPath(state.currentProjectName || 'projeto'),
+      crs: `${crsDef.authid} - ${crsDef.label}`,
+      savedAt: new Date().toISOString(),
+      thumbnail: renderProjectThumbnail(state.layers),
+    };
+    if (idx >= 0) list[idx] = entry; else list.unshift(entry);
+    writeProjectsIndex(list);
+  }
+
+  function removeProjectFromIndex(id) {
+    const list = readProjectsIndex().filter(p => p.id !== id);
+    writeProjectsIndex(list);
+    try { localStorage.removeItem(PROJECT_DATA_PREFIX + id); } catch (e) {}
   }
 
   // Recria uma camada salva (autosave ou histórico), respeitando se é uma camada base
@@ -2709,15 +3346,26 @@
       }
       return;
     }
-    addLayer(l.name, l.geojson, { color: l.color, visible: l.visible, skipAutosave: true, skipFit: true, ...opts });
+    addLayer(l.name, l.geojson, { color: l.color, visible: l.visible, crs: l.crs || DEFAULT_CRS, skipAutosave: true, skipFit: true, ...opts });
   }
 
   function scheduleAutosave() {
+    // Qualquer mudança que justifique um autosave também é relevante para quem tem
+    // uma janela de Layout de Impressão aberta (visibilidade, simbologia, geometria,
+    // camadas adicionadas/removidas, CRS...). Reaproveitar este único ponto de entrada
+    // evita ter que caçar e lembrar de cada chamada individual espalhada pelo arquivo.
+    broadcastLayoutSync();
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
       try {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeProject()));
-        flashAutosaveIndicator();
+        // Só grava enquanto houver um projeto atual (nomeado). Um projeto novo, nunca
+        // salvo (currentProjectId ainda null), não é persistido automaticamente — evita
+        // poluir a lista de recentes com rascunhos que o usuário nem nomeou ainda.
+        if (state.currentProjectId) {
+          localStorage.setItem(PROJECT_DATA_PREFIX + state.currentProjectId, JSON.stringify(serializeProject()));
+          upsertProjectIndexEntry();
+          flashAutosaveIndicator();
+        }
       } catch (err) {
         console.error('Falha ao salvar automaticamente:', err);
         const el = document.getElementById('autosave-indicator');
@@ -2742,9 +3390,11 @@
       layers: state.layers.map(l => ({
         name: l.name, color: l.color, visible: l.visible, geojson: l.geojson,
         isBasemap: l.isBasemap || false, basemapKind: l.basemapKind || null,
+        crs: l.crs || DEFAULT_CRS,
       })),
       selectedLayerId: state.selectedLayerId,
       nextId: state.nextId,
+      projectCrs: state.projectCrs,
     }));
   }
 
@@ -2783,6 +3433,7 @@
       });
       state.nextId = snap.nextId;
       state.selectedLayerId = snap.selectedLayerId;
+      if (snap.projectCrs) { state.projectCrs = snap.projectCrs; updateProjectCrsDisplay(); }
       renderLayerList();
       renderAttributeTable();
 
@@ -2803,8 +3454,11 @@
       restoringHistory = false;
     }
     try {
-      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeProject()));
-      flashAutosaveIndicator();
+      if (state.currentProjectId) {
+        localStorage.setItem(PROJECT_DATA_PREFIX + state.currentProjectId, JSON.stringify(serializeProject()));
+        upsertProjectIndexEntry();
+        flashAutosaveIndicator();
+      }
     } catch (err) { /* ignora falha de gravação aqui; próxima scheduleAutosave tenta de novo */ }
   }
 
@@ -2843,49 +3497,241 @@
     if (el) el.textContent = '💾 Salvo automaticamente';
   }
 
-  function loadAutosavedProject() {
-    let raw;
-    try {
-      raw = localStorage.getItem(AUTOSAVE_KEY);
-    } catch (err) {
-      return; // localStorage indisponível (modo privado restrito, etc.)
-    }
-    if (!raw) return;
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (err) {
-      console.error('Autosave corrompido, ignorando:', err);
-      return;
-    }
-    if (!data.layers || data.layers.length === 0) return;
+  // Limpa todas as camadas do mapa/estado atual, sem tocar em localStorage — usado antes
+  // de carregar um projeto diferente ou de começar um projeto novo vazio.
+  function clearCurrentProjectState() {
+    state.layers.forEach(l => { try { state.map.removeLayer(l.leafletLayer); } catch (e) {} });
+    state.layers = [];
+    state.selectedLayerId = null;
+    state.nextId = 1;
+    state.projectCrs = DEFAULT_CRS;
+    updateProjectCrsDisplay();
+    renderLayerList();
+    renderAttributeTable();
+    const hasLayers = false;
+    document.getElementById('btn-export').disabled = !hasLayers;
+    document.getElementById('btn-zoom-extent').disabled = !hasLayers;
+    document.getElementById('btn-toggle-edit').disabled = !hasLayers;
+    document.getElementById('btn-toggle-geom-edit').disabled = !hasLayers;
+    document.getElementById('btn-draw-point').disabled = !hasLayers;
+    document.getElementById('btn-draw-polygon').disabled = !hasLayers;
+    document.getElementById('btn-draw-line').disabled = !hasLayers;
+    document.getElementById('btn-measure').disabled = !hasLayers;
+    safeEl('btn-buffer').disabled = !hasLayers;
+    safeEl('btn-split').disabled = !hasLayers;
+    safeEl('btn-intersect').disabled = true;
+    safeEl('btn-union').disabled = true;
+    safeEl('btn-clip').disabled = true;
+  }
 
-    data.layers.forEach(l => {
-      restoreLayerFromSaved(l);
-    });
+  // Carrega o snapshot de um projeto salvo (pelo id) para o estado atual e fecha a
+  // tela de boas-vindas. Usado tanto pelo clique num card de "recente" quanto,
+  // futuramente, por qualquer outro ponto de entrada que abra um projeto por id.
+  function openProjectById(id) {
+    let raw;
+    try { raw = localStorage.getItem(PROJECT_DATA_PREFIX + id); }
+    catch (err) { toast('Não foi possível ler este projeto do navegador.', 3500); return; }
+    if (!raw) { toast('Este projeto não foi encontrado (pode ter sido apagado).', 3500); return; }
+    let data;
+    try { data = JSON.parse(raw); }
+    catch (err) { toast('Arquivo de projeto corrompido, não foi possível abrir.', 3500); return; }
+
+    clearCurrentProjectState();
+
+    if (data.projectCrs && CRS_CATALOG[data.projectCrs]) {
+      state.projectCrs = data.projectCrs;
+      updateProjectCrsDisplay();
+    }
+    (data.layers || []).forEach(l => restoreLayerFromSaved(l));
     if (typeof data.nextId === 'number') state.nextId = Math.max(state.nextId, data.nextId);
     if (data.selectedLayerId != null && state.layers.some(l => l.id === data.selectedLayerId)) {
       selectLayer(data.selectedLayerId);
     }
 
-    // Um único zoom para a extensão de todas as camadas restauradas, em vez de
-    // um fitBounds por camada (o que deixaria o mapa "pulando" durante a restauração).
     try {
       const group = new L.FeatureGroup(state.layers.map(l => l.leafletLayer));
       state.map.fitBounds(group.getBounds(), { padding: [20, 20] });
     } catch (e) { /* nenhuma geometria válida para enquadrar */ }
 
-    toast(`Projeto restaurado automaticamente (${data.layers.length} camada(s), salvo em ${new Date(data.savedAt).toLocaleString('pt-BR')}).`, 4000);
+    const meta = readProjectsIndex().find(p => p.id === id);
+    state.currentProjectId = id;
+    state.currentProjectName = meta ? meta.name : 'Projeto sem título';
+    hasOpenedAProjectThisSession = true;
+
+    restoringHistory = true;
+    history.stack = [snapshotProject()];
+    history.index = 0;
+    restoringHistory = false;
+    updateUndoRedoButtons();
+
+    closeWelcomeScreen();
+    toast(`Projeto "${state.currentProjectName}" aberto (${(data.layers || []).length} camada(s)).`, 3200);
+  }
+  // Começa um projeto em branco: fecha a tela de boas-vindas, limpa o estado atual e
+  // deixa currentProjectId em null até o primeiro "Salvar"/"Salvar como".
+  function startNewEmptyProject() {
+    clearCurrentProjectState();
+    state.currentProjectId = null;
+    state.currentProjectName = null;
+    hasOpenedAProjectThisSession = true;
+    restoringHistory = true;
+    history.stack = [snapshotProject()];
+    history.index = 0;
+    restoringHistory = false;
+    updateUndoRedoButtons();
+    closeWelcomeScreen();
+    toast('Novo projeto vazio criado.', 2200);
   }
 
-  const btnClearAutosave = document.getElementById('btn-clear-autosave');
-  if (btnClearAutosave) {
-    btnClearAutosave.addEventListener('click', () => {
-      if (!confirm('Isso apaga os dados salvos automaticamente neste navegador (não afeta arquivos já exportados). Continuar?')) return;
-      localStorage.removeItem(AUTOSAVE_KEY);
-      toast('Dados salvos automaticamente foram apagados.');
+  // ---------------- Tela de boas-vindas: renderização e controles ----------------
+  function formatSavedAt(iso) {
+    try { return new Date(iso).toLocaleString('pt-BR'); } catch (e) { return ''; }
+  }
+
+  function renderWelcomeRecentList() {
+    const listEl = document.getElementById('welcome-recent-list');
+    if (!listEl) return;
+    const projects = readProjectsIndex().slice().sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+    if (!projects.length) {
+      listEl.innerHTML = `<div class="welcome-empty">Nenhum projeto recente ainda. Comece por "Novo Projeto Vazio" ao lado e salve quando quiser guardá-lo aqui.</div>`;
+      return;
+    }
+    listEl.innerHTML = projects.map(p => `
+      <div class="welcome-card" data-project-id="${p.id}">
+        <div class="welcome-thumb">${p.thumbnail || ''}</div>
+        <div class="welcome-card-info">
+          <div class="welcome-card-name">${escapeHtml(p.name)}</div>
+          <div class="welcome-card-path">${escapeHtml(p.path || '')}</div>
+          <div class="welcome-card-crs">${escapeHtml(p.crs || '')}</div>
+        </div>
+        <div class="welcome-card-actions">
+          <button class="welcome-card-delete" data-delete-id="${p.id}" title="Remover da lista de recentes">🗑</button>
+        </div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.welcome-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.welcome-card-delete')) return;
+        openProjectById(card.getAttribute('data-project-id'));
+      });
+    });
+    listEl.querySelectorAll('.welcome-card-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-delete-id');
+        const meta = readProjectsIndex().find(p => p.id === id);
+        if (!confirm(`Remover "${meta ? meta.name : 'este projeto'}" da lista de recentes? Isso apaga os dados salvos deste projeto no navegador.`)) return;
+        removeProjectFromIndex(id);
+        if (state.currentProjectId === id) { state.currentProjectId = null; state.currentProjectName = null; }
+        renderWelcomeRecentList();
+        toast('Projeto removido da lista de recentes.');
+      });
     });
   }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function openWelcomeScreen() {
+    renderWelcomeRecentList();
+    const crsDef = CRS_CATALOG[DEFAULT_CRS];
+    const crsLabelEl = document.getElementById('welcome-new-crs-label');
+    if (crsLabelEl && crsDef) crsLabelEl.textContent = `${crsDef.authid} - ${crsDef.label}`;
+    document.getElementById('welcome-screen').classList.add('show');
+  }
+
+  function closeWelcomeScreen() {
+    document.getElementById('welcome-screen').classList.remove('show');
+  }
+
+  document.getElementById('welcome-new-project-card').addEventListener('click', startNewEmptyProject);
+
+  // "✕" no canto: fecha a tela sem trocar de projeto (ex.: usuário abriu por engano
+  // pelo botão Início e quer voltar ao que já estava editando).
+  document.getElementById('welcome-close').addEventListener('click', () => {
+    // Só permite fechar "de volta" se já havia algo em edição nesta sessão (um projeto
+    // foi aberto ou criado antes); senão, fechar sem escolher nada deixaria a tela do
+    // editor vazia e sem saída, então mantemos a tela de boas-vindas aberta nesse caso.
+    if (hasOpenedAProjectThisSession) {
+      closeWelcomeScreen();
+    } else {
+      toast('Escolha um projeto recente ou "Novo Projeto Vazio" para continuar.', 2600);
+    }
+  });
+
+  // ---------------- Botão "Início" e ações de menu: Novo / Abrir Recente / Salvar / Salvar como ----------------
+  document.getElementById('btn-new-project').addEventListener('click', () => {
+    if (state.layers.length > 0 && !confirm('Começar um novo projeto vazio? Alterações não salvas do projeto atual serão perdidas (o autosave, se houver, permanece salvo).')) return;
+    startNewEmptyProject();
+  });
+
+  // btn-open-project na toolbar funciona como o botão "Início": abre a tela de
+  // projetos recentes a qualquer momento, sem perder o projeto atual (que já está
+  // salvo ou em autosave no localStorage).
+  document.getElementById('btn-open-project').addEventListener('click', openWelcomeScreen);
+
+  function promptSaveAs() {
+    const suggested = state.currentProjectName ? `${state.currentProjectName} (cópia)` : 'Projeto sem título';
+    const bodyHtml = `
+      <label>Nome do projeto
+        <input type="text" id="save-as-name" value="${escapeHtml(suggested)}" autofocus>
+      </label>
+      <div style="font-size:11.5px; color:var(--text-dim); line-height:1.5;">
+        Salva uma nova entrada na lista de projetos recentes (não substitui o projeto atual, se houver um).
+      </div>
+    `;
+    openModal('Salvar Como...', bodyHtml, () => {
+      const nameInput = document.getElementById('save-as-name');
+      const name = (nameInput && nameInput.value.trim()) || 'Projeto sem título';
+      state.currentProjectId = genProjectId();
+      state.currentProjectName = name;
+      try {
+        localStorage.setItem(PROJECT_DATA_PREFIX + state.currentProjectId, JSON.stringify(serializeProject()));
+        upsertProjectIndexEntry();
+        flashAutosaveIndicator();
+        toast(`Projeto salvo como "${name}".`, 2600);
+      } catch (err) {
+        console.error(err);
+        toast('Falha ao salvar o projeto (espaço do navegador cheio?)', 4000);
+      }
+    });
+  }
+
+  function saveCurrentProject() {
+    if (!state.currentProjectId) { promptSaveAs(); return; }
+    try {
+      localStorage.setItem(PROJECT_DATA_PREFIX + state.currentProjectId, JSON.stringify(serializeProject()));
+      upsertProjectIndexEntry();
+      flashAutosaveIndicator();
+      toast(`Projeto "${state.currentProjectName}" salvo.`, 2200);
+    } catch (err) {
+      console.error(err);
+      toast('Falha ao salvar o projeto (espaço do navegador cheio?)', 4000);
+    }
+  }
+
+  document.getElementById('btn-save-project').addEventListener('click', saveCurrentProject);
+
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    const ctrlOrCmd = e.ctrlKey || e.metaKey;
+    if (!ctrlOrCmd) return;
+    if (e.key.toLowerCase() === 's' && e.shiftKey) { e.preventDefault(); promptSaveAs(); }
+    else if (e.key.toLowerCase() === 's') { e.preventDefault(); saveCurrentProject(); }
+  });
+
+  // Itens do menu "Projeto": Novo, Abrir Recente, Salvar, Salvar Como...
+  const menuProjectNew = document.getElementById('menu-project-new');
+  if (menuProjectNew) menuProjectNew.addEventListener('click', () => document.getElementById('btn-new-project').click());
+  const menuProjectOpenRecent = document.getElementById('menu-project-open-recent');
+  if (menuProjectOpenRecent) menuProjectOpenRecent.addEventListener('click', openWelcomeScreen);
+  const menuProjectSave = document.getElementById('menu-project-save');
+  if (menuProjectSave) menuProjectSave.addEventListener('click', saveCurrentProject);
+  const menuProjectSaveAs = document.getElementById('menu-project-save-as');
+  if (menuProjectSaveAs) menuProjectSaveAs.addEventListener('click', promptSaveAs);
 
   // ---------------- Import ----------------
   document.getElementById('btn-import').addEventListener('click', () => {
@@ -3115,7 +3961,7 @@
       },
     }).addTo(state.map);
 
-    const layerObj = { id, name, geojson, leafletLayer, color, visible: true, editedRows: new Set(), dirty: false, selectedFeatures: new Set() };
+    const layerObj = { id, name, geojson, leafletLayer, color, visible: true, editedRows: new Set(), dirty: false, selectedFeatures: new Set(), crs: restoreOptions.crs || DEFAULT_CRS };
     state.layers.push(layerObj);
     renderLayerList();
     selectLayer(id);
@@ -3411,6 +4257,16 @@
     else layer.selectedFeatures.delete(idx);
     restyleFeatureOnMap(layer, idx);
     updateFeatureRowHighlight(layerId, idx);
+    updateFeatureCoordsDisplay(layerId);
+  }
+
+  // Mostra, na barra de ferramentas da tabela de atributos, as coordenadas do centroide
+  // da(s) feição(ões) selecionada(s) na camada ativa, reprojetadas para o SRC daquela
+  // camada (definido em Propriedades da Camada ▸ Fonte, ou no menu de contexto ▸ SRC da
+  // camada). Some várias feições selecionadas: mostra o centroide do conjunto.
+  function updateFeatureCoordsDisplay(layerId) {
+    // Removido a pedido: a tabela de atributos não mostra mais o texto
+    // "Feição selecionada (EPSG:...): Lat/Lon" sobre a lista de camadas.
   }
 
   // Garante que a camada esteja ativa (troca a camada selecionada/re-renderiza a tabela se preciso).
@@ -3539,6 +4395,14 @@
       saveBtn.disabled = true;
       document.getElementById('btn-add-feature-tb').disabled = true;
       document.getElementById('btn-save-edits-tb').disabled = true;
+      document.getElementById('btn-delete-selected-features').disabled = true;
+      document.getElementById('btn-delete-selected').disabled = document.getElementById('btn-delete-selected-features').disabled;
+      document.getElementById('btn-select-all-features').disabled = true;
+      document.getElementById('btn-invert-selection-attr').disabled = true;
+      document.getElementById('btn-deselect-all-attr').disabled = true;
+      document.getElementById('btn-pan-to-sel-attr').disabled = true;
+      document.getElementById('btn-zoom-to-sel-attr').disabled = true;
+      document.getElementById('btn-delete-field').disabled = true;
       return;
     }
 
@@ -3550,14 +4414,34 @@
       saveBtn.disabled = true;
       document.getElementById('btn-add-feature-tb').disabled = true;
       document.getElementById('btn-save-edits-tb').disabled = true;
+      document.getElementById('btn-delete-selected-features').disabled = true;
+      document.getElementById('btn-delete-selected').disabled = document.getElementById('btn-delete-selected-features').disabled;
+      document.getElementById('btn-select-all-features').disabled = true;
+      document.getElementById('btn-invert-selection-attr').disabled = true;
+      document.getElementById('btn-deselect-all-attr').disabled = true;
+      document.getElementById('btn-pan-to-sel-attr').disabled = true;
+      document.getElementById('btn-zoom-to-sel-attr').disabled = true;
+      document.getElementById('btn-delete-field').disabled = true;
       return;
     }
 
     addFieldBtn.disabled = !state.editMode;
     addFeatureBtn.disabled = !state.editMode;
     saveBtn.disabled = !layer.dirty;
+    document.getElementById('btn-delete-field').disabled = !state.editMode || allPropKeys(layer).length === 0;
     document.getElementById('btn-add-feature-tb').disabled = !state.editMode;
     document.getElementById('btn-save-edits-tb').disabled = !layer.dirty;
+    document.getElementById('btn-delete-selected-features').disabled = !state.editMode;
+      document.getElementById('btn-delete-selected').disabled = document.getElementById('btn-delete-selected-features').disabled;
+    document.getElementById('btn-select-all-features').disabled = layer.geojson.features.length === 0;
+    document.getElementById('btn-invert-selection-attr').disabled = layer.geojson.features.length === 0;
+    document.getElementById('btn-deselect-all-attr').disabled = layer.geojson.features.length === 0;
+    document.getElementById('btn-pan-to-sel-attr').disabled = layer.geojson.features.length === 0;
+    document.getElementById('btn-zoom-to-sel-attr').disabled = layer.geojson.features.length === 0;
+    document.getElementById('btn-cut-features-attr').disabled = !state.editMode;
+    document.getElementById('btn-copy-features-attr').disabled = layer.geojson.features.length === 0;
+    updatePasteButtonState();
+    document.getElementById('btn-move-selection-top').disabled = layer.geojson.features.length === 0;
 
     const features = layer.geojson.features;
     if (features.length === 0) {
@@ -3582,7 +4466,7 @@
       const editedClass = layer.editedRows.has(idx) ? ' row-edited' : '';
       const selectedClass = layer.selectedFeatures.has(idx) ? ' feat-selected' : '';
       html += `<tr data-idx="${idx}" class="${editedClass}${selectedClass}">`;
-      html += `<td class="id-cell"><div class="cell-view">${idx}</div></td>`;
+      html += `<td class="id-cell"><div class="cell-view">${idx + 1}</div></td>`;
       propKeys.forEach(k => {
         const val = f.properties[k] ?? '';
         if (state.editMode) {
@@ -3599,6 +4483,7 @@
     html += '</tbody></table>';
     wrap.innerHTML = html;
     document.getElementById('scale-display').textContent = `Feições: ${features.length}`;
+    updateFeatureCoordsDisplay(layer.id);
 
     // seleção de linha (destaque de "linha ativa" ao clicar em qualquer lugar dela)
     wrap.querySelectorAll('tr[data-idx]').forEach(row => {
@@ -3710,6 +4595,40 @@
     renderAttributeTable();
   }
 
+  // "Excluir campo": abre um diálogo listando todos os campos da camada ativa, com uma
+  // caixa de seleção por campo (igual ao Gerenciador de Campos do QGIS), e remove de todas
+  // as feições os campos marcados quando o usuário confirma em "OK".
+  function openDeleteFieldsDialog() {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+    const keys = allPropKeys(layer);
+    if (keys.length === 0) { toast('Esta camada não possui campos.'); return; }
+    const bodyHtml = `
+      <div id="delete-fields-list" style="display:flex; flex-direction:column; gap:2px; max-height:280px; overflow:auto;">
+        ${keys.map((k, i) => `
+          <label style="display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:3px; cursor:pointer;" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
+            <input type="checkbox" class="delete-field-checkbox" value="${k}" id="del-field-${i}">
+            <span>${k}</span>
+          </label>
+        `).join('')}
+      </div>
+    `;
+    openModal('Excluir Campos', bodyHtml, () => {
+      const checked = Array.from(document.querySelectorAll('.delete-field-checkbox:checked')).map(cb => cb.value);
+      if (checked.length === 0) { toast('Nenhum campo selecionado.'); return; }
+      layer.geojson.features.forEach(f => {
+        checked.forEach(k => { delete f.properties[k]; });
+      });
+      markDirty(layer);
+      renderAttributeTable();
+      toast(`${checked.length} campo(s) excluído(s).`);
+    });
+    // Este diálogo usa "OK" (como no QGIS real), não "Aplicar".
+    document.getElementById('modal-confirm').textContent = 'OK';
+  }
+  document.getElementById('btn-delete-field').addEventListener('click', openDeleteFieldsDialog);
+
+
   function addFeatureToLayer(layer) {
     const propKeys = allPropKeys(layer);
     const emptyProps = {};
@@ -3729,6 +4648,105 @@
     renderAttributeTable();
     toast('Feição adicionada no centro do mapa (geometria editável na próxima fase).');
   }
+
+  // ---- Botões da toolbar da Tabela de Atributos: recarregar, excluir e (des)selecionar feições ----
+
+  // "Recarregar a tabela": apenas re-renderiza a tabela a partir dos dados já carregados
+  // em memória — não recarrega a página nem a camada (equivalente a um F5 do navegador).
+  document.getElementById('btn-reload-table').addEventListener('click', () => {
+    renderAttributeTable();
+  });
+
+  function deleteSelectedFeatures() {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) return;
+    const idxs = Array.from(layer.selectedFeatures).sort((a, b) => b - a); // de trás pra frente
+    if (idxs.length === 0) { toast('Nenhuma feição selecionada.'); return; }
+    idxs.forEach(idx => layer.geojson.features.splice(idx, 1));
+    layer.selectedFeatures.clear();
+    layer.leafletLayer.clearLayers();
+    layer.leafletLayer.addData(layer.geojson);
+    markDirty(layer);
+    renderAttributeTable();
+    toast(`${idxs.length} feição(ões) excluída(s).`);
+  }
+  document.getElementById('btn-delete-selected-features').addEventListener('click', deleteSelectedFeatures);
+  document.getElementById('btn-delete-selected').addEventListener('click', deleteSelectedFeatures);
+
+  document.getElementById('btn-select-all-features').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) return;
+    layer.geojson.features.forEach((_, idx) => setFeatureSelected(layer.id, idx, true));
+  });
+
+  document.getElementById('btn-invert-selection-attr').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) return;
+    layer.geojson.features.forEach((_, idx) => {
+      setFeatureSelected(layer.id, idx, !layer.selectedFeatures.has(idx));
+    });
+  });
+
+  document.getElementById('btn-deselect-all-attr').addEventListener('click', () => {
+    clearFeatureSelection(state.selectedLayerId);
+    updateFeatureCoordsDisplay(state.selectedLayerId);
+  });
+
+  document.getElementById('btn-pan-to-sel-attr').addEventListener('click', () => {
+    document.getElementById('btn-pan-to-selected').click();
+  });
+
+  document.getElementById('btn-zoom-to-sel-attr').addEventListener('click', zoomToSelection);
+
+  // "Mover selecionadas para o topo": rola a área da tabela de volta ao início
+  // (não reordena as linhas — apenas leva a visualização de volta ao topo da lista).
+  document.getElementById('btn-move-selection-top').addEventListener('click', () => {
+    document.getElementById('attr-table-wrap').scrollTop = 0;
+  });
+
+  // ---- Cortar / Copiar / Colar feições selecionadas (área de transferência interna) ----
+  function updatePasteButtonState() {
+    const btn = document.getElementById('btn-paste-features-attr');
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    btn.disabled = !layer || layer.isBasemap || !state.editMode || state.featureClipboard.length === 0;
+  }
+
+  function copySelectedFeatures() {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) return;
+    const idxs = Array.from(layer.selectedFeatures).sort((a, b) => a - b);
+    if (idxs.length === 0) { toast('Nenhuma feição selecionada.'); return; }
+    // cópia profunda, para que editar a feição original depois não afete o que foi copiado
+    state.featureClipboard = idxs.map(idx => JSON.parse(JSON.stringify(layer.geojson.features[idx])));
+    updatePasteButtonState();
+    toast(`${idxs.length} feição(ões) copiada(s) para a área de transferência.`);
+  }
+
+  document.getElementById('btn-copy-features-attr').addEventListener('click', copySelectedFeatures);
+
+  document.getElementById('btn-cut-features-attr').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) return;
+    if (layer.selectedFeatures.size === 0) { toast('Nenhuma feição selecionada.'); return; }
+    copySelectedFeatures();
+    deleteSelectedFeatures();
+  });
+
+  document.getElementById('btn-paste-features-attr').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) return;
+    if (state.featureClipboard.length === 0) { toast('Área de transferência vazia.'); return; }
+    const pasted = state.featureClipboard.map(f => JSON.parse(JSON.stringify(f)));
+    const startIdx = layer.geojson.features.length;
+    pasted.forEach(f => layer.geojson.features.push(f));
+    layer.leafletLayer.clearLayers();
+    layer.leafletLayer.addData(layer.geojson);
+    markDirty(layer);
+    renderAttributeTable();
+    toast(`${pasted.length} feição(ões) colada(s).`);
+  });
+
+
 
   // ---------------- Painel de atributos: expandir/recolher ----------------
   document.getElementById('attr-header').addEventListener('click', (e) => {
@@ -4096,7 +5114,6 @@
     state.editMode = on;
     document.getElementById('btn-toggle-edit').classList.toggle('active', on);
     document.getElementById('btn-toggle-edit-2').classList.toggle('active', on);
-    document.getElementById('btn-toggle-edit-2').textContent = on ? '✓ Editando' : '✎ Alternar edição';
     renderAttributeTable();
     if (on) {
       document.getElementById('attr-panel').classList.remove('collapsed');
@@ -4585,16 +5602,16 @@
     toast(`Feição dividida em duas na camada "${layer.name}".`);
   });
 
-  // ---------------- Restaura projeto salvo automaticamente, se houver ----------------
-  loadAutosavedProject();
-
-  // Captura o estado inicial (com ou sem camadas restauradas) como o primeiro
-  // ponto do histórico, para que "Desfazer" tenha algo estável para onde voltar.
+  // ---------------- Tela de boas-vindas ao carregar a página ----------------
+  // Sempre aparece no carregamento (F5/abrir o programa), antes de qualquer coisa do
+  // editor — igual ao comportamento real do QGIS. O usuário escolhe um projeto recente
+  // ou "Novo Projeto Vazio"; nenhuma camada é restaurada automaticamente aqui.
   restoringHistory = true;
   history.stack = [snapshotProject()];
   history.index = 0;
   restoringHistory = false;
   updateUndoRedoButtons();
+  openWelcomeScreen();
 
   // ---------------- Pan tool (placeholder de UI — Leaflet já navega por padrão) ----------------
   const panBtn = document.getElementById('btn-pan');
@@ -4622,7 +5639,7 @@
     { id: 'shapedigitizing', label: 'Barra de Ferramentas de Vetorização de Formas',   groups: ['shapedigitizing'] },
     { id: 'meshdigitizing',  label: 'Barra de ferramentas de Vetorização de Malha',    groups: null, note: 'Edição de camadas de malha (mesh) — não implementado.' },
     { id: 'datasource',      label: 'Barra de Ferramentas do Gerenciador de Fonte de Dados', groups: ['datasource', 'managelayers2', 'createlayer'] },
-    { id: 'projecttb',       label: 'Barra de ferramentas do Projeto',                groups: ['project'] },
+    { id: 'projecttb',       label: 'Barra de ferramentas do Projeto',                groups: ['project', 'projectfile'] },
     { id: 'plugins',         label: 'Complementos',                                   groups: ['dbpython'] },
     { id: 'snapping',        label: 'Ferramentas de aderência',                       groups: null, note: 'Configurações de snapping ao digitalizar — não implementado.' },
     { id: 'managelayers',    label: 'Gerenciar camadas',                              groups: ['datasource', 'managelayers2', 'createlayer'] },
@@ -4645,13 +5662,19 @@
   const TB_STORAGE_KEY = 'qgisWebProto_toolbarVisibility_v1';
 
   function loadTbVisibility() {
-    try {
-      const raw = localStorage.getItem(TB_STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch (e) { /* localStorage indisponível */ }
-    // default: monta a partir de TB_DEFAULT_CHECKED
     const defaults = {};
     TB_MENU_ITEMS.forEach(it => { defaults[it.id] = TB_DEFAULT_CHECKED.has(it.id); });
+    try {
+      const raw = localStorage.getItem(TB_STORAGE_KEY);
+      if (raw) {
+        // Faz merge do que já foi salvo com os defaults, em vez de confiar cegamente no
+        // objeto salvo: assim, itens novos adicionados depois de o usuário já ter uma
+        // preferência salva (ex.: o grupo "projectfile" com os botões Novo/Abrir/Salvar
+        // Projeto) aparecem visíveis por padrão, em vez de sumirem por não existirem
+        // ainda na sessão salva antiga.
+        return { ...defaults, ...JSON.parse(raw) };
+      }
+    } catch (e) { /* localStorage indisponível ou dado salvo corrompido */ }
     return defaults;
   }
 
@@ -4671,6 +5694,11 @@
         item.groups.forEach(g => groupsToShow.add(g));
       }
     });
+    // O grupo "projectfile" (Novo/Abrir/Salvar Projeto) é essencial para o fluxo de
+    // projetos e sempre fica visível, independente de qualquer preferência de barra de
+    // ferramentas salva anteriormente (inclusive de sessões antigas do navegador que
+    // não conheciam esse grupo) — como no QGIS real, onde essa barra não se some.
+    groupsToShow.add('projectfile');
     document.querySelectorAll('.toolbar-group[data-toolbar]').forEach(el => {
       const name = el.getAttribute('data-toolbar');
       const show = groupsToShow.has(name);
@@ -5563,11 +6591,12 @@
       }
       const nFeatures = layer.geojson.features.length;
       const geomType = nFeatures ? (layer.geojson.features[0].geometry ? layer.geojson.features[0].geometry.type : '—') : '—';
+      const layerCrsDef = CRS_CATALOG[layer.crs] || CRS_CATALOG[DEFAULT_CRS];
       infoTable.innerHTML = `
         <tr><td>Nome</td><td>${layer.name}</td></tr>
         <tr><td>Tipo de geometria</td><td>${geomType}</td></tr>
         <tr><td>Nº de feições</td><td>${nFeatures}</td></tr>
-        <tr><td>CRS</td><td>WGS 84 (EPSG:4326)</td></tr>
+        <tr><td>CRS</td><td>${layerCrsDef.label} (${layerCrsDef.authid})</td></tr>
         <tr><td>Visível</td><td>${layer.visible ? 'Sim' : 'Não'}</td></tr>
       `;
       const fonteTable = document.getElementById('lp-fonte-table');
@@ -5575,7 +6604,41 @@
         <tr><td>Nome da camada</td><td>${layer.name}</td></tr>
         <tr><td>Provedor</td><td>OGR / GeoJSON (memória)</td></tr>
         <tr><td>Codificação</td><td>UTF-8</td></tr>
+        <tr><td>SRC atribuído</td><td>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <select id="lp-fonte-crs-select" style="font:inherit; font-size:12px; padding:3px 6px; border:1px solid var(--panel-border); border-radius:3px;">
+              ${buildCrsOptionsHtml(layer.crs || DEFAULT_CRS)}
+            </select>
+            <button type="button" id="lp-fonte-crs-to-project" title="Usar este SRC também no projeto" style="font-size:11px; padding:3px 8px; border:1px solid var(--panel-border); border-radius:3px; background:#fff; cursor:pointer;">→ Definir no projeto</button>
+            <button type="button" id="lp-fonte-crs-from-project" title="Copiar o SRC atual do projeto para esta camada" style="font-size:11px; padding:3px 8px; border:1px solid var(--panel-border); border-radius:3px; background:#fff; cursor:pointer;">← Usar do projeto</button>
+          </div>
+        </td></tr>
       `;
+      const crsSelect = document.getElementById('lp-fonte-crs-select');
+      if (crsSelect) {
+        crsSelect.addEventListener('change', () => {
+          layer.crs = crsSelect.value;
+          const newDef = CRS_CATALOG[layer.crs];
+          toast(`SRC da camada "${layer.name}" definido como ${newDef.label}.`);
+          fillSimplePanes(layer); // reflete a mudança também na aba Informação
+          renderAttributeTable(); // atualiza a linha de coordenadas do rodapé, se visível
+          scheduleAutosave();
+        });
+      }
+      const crsToProjectBtn = document.getElementById('lp-fonte-crs-to-project');
+      if (crsToProjectBtn) {
+        crsToProjectBtn.addEventListener('click', () => setProjectCrs(layer.crs || DEFAULT_CRS));
+      }
+      const crsFromProjectBtn = document.getElementById('lp-fonte-crs-from-project');
+      if (crsFromProjectBtn) {
+        crsFromProjectBtn.addEventListener('click', () => {
+          layer.crs = state.projectCrs;
+          toast(`SRC da camada "${layer.name}" definido como ${CRS_CATALOG[layer.crs].label} (a partir do projeto).`);
+          fillSimplePanes(layer);
+          renderAttributeTable();
+          scheduleAutosave();
+        });
+      }
       const camposEl = document.getElementById('lp-campos-list');
       const keys = new Set();
       layer.geojson.features.forEach(f => Object.keys(f.properties || {}).forEach(k => keys.add(k)));
