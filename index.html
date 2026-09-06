@@ -335,6 +335,16 @@
   #map-wrap { flex:1; position:relative; min-width:0; }
   #map { position:absolute; inset:0; background:#dce9f2; }
 
+  /* ---------- Cursores das ferramentas de zoom (lupa com + / -) ---------- */
+  #map.zoom-in-cursor .leaflet-container,
+  #map.zoom-in-cursor {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="27" height="27" viewBox="0 0 27 27"><g fill="none" stroke="%23222" stroke-width="2"><circle cx="11" cy="11" r="7" fill="rgba(255,255,255,0.85)"/><line x1="16.2" y1="16.2" x2="24" y2="24"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></g></svg>') 11 11, zoom-in;
+  }
+  #map.zoom-out-cursor .leaflet-container,
+  #map.zoom-out-cursor {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="27" height="27" viewBox="0 0 27 27"><g fill="none" stroke="%23222" stroke-width="2"><circle cx="11" cy="11" r="7" fill="rgba(255,255,255,0.85)"/><line x1="16.2" y1="16.2" x2="24" y2="24"/><line x1="8" y1="11" x2="14" y2="11"/></g></svg>') 11 11, zoom-out;
+  }
+
   #attr-panel {
     height: 190px;
     border-top: 1px solid var(--panel-border);
@@ -360,9 +370,26 @@
     border-left: 1px solid var(--panel-border);
     flex-shrink: 0;
   }
-  #body.attr-dock-right #attr-panel.collapsed { width: 26px; }
-  #body.attr-dock-right #attr-panel.collapsed #attr-header { writing-mode: vertical-rl; height:100%; justify-content:flex-start; padding:8px 4px; }
-  #body.attr-dock-right #attr-panel.collapsed .title { writing-mode: vertical-rl; }
+  #body.attr-dock-right #attr-panel.collapsed { width: 28px; }
+  #body.attr-dock-right #attr-panel.collapsed #attr-header {
+    writing-mode: vertical-rl;
+    height:100%; width:100%;
+    justify-content:flex-start;
+    align-items:center;
+    padding:8px 0;
+    gap: 10px;
+  }
+  #body.attr-dock-right #attr-panel.collapsed #attr-header-right {
+    flex-direction: column;
+    gap: 10px;
+  }
+  #body.attr-dock-right #attr-panel.collapsed #unsaved-badge,
+  #body.attr-dock-right #attr-panel.collapsed #attr-dock-toggle {
+    display: none;
+  }
+  #body.attr-dock-right #attr-panel.collapsed #attr-toggle {
+    writing-mode: vertical-rl;
+  }
   #body.attr-dock-right #attr-resize-handle {
     left: -3px; top: 0; right: auto; bottom: auto;
     width: 6px; height: 100%;
@@ -505,6 +532,470 @@
     z-index:1000;
   }
   #toast.show { opacity:0.95; }
+  /* ================= Diálogo: Propriedades da Camada (Layer Properties) ================= */
+  #lp-overlay {
+    display:none;
+    position:fixed; inset:0;
+    background: rgba(0,0,0,0.18);
+    z-index: 900;
+    align-items:center; justify-content:center;
+  }
+  #lp-overlay.show { display:flex; }
+  #lp-window {
+    width: 900px; max-width:96vw;
+    height: 640px; max-height:92vh;
+    background: #f0f0f0;
+    border: 1px solid #8a8a8a;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+    display:flex; flex-direction:column;
+    font-size:12.5px;
+    color: var(--text);
+  }
+  #lp-titlebar {
+    background: linear-gradient(#3d7ab5, #2f5f92);
+    color:#fff;
+    padding:5px 8px;
+    display:flex; align-items:center; gap:6px;
+    font-size:12.5px;
+    flex-shrink:0;
+  }
+  #lp-titlebar .lp-title-icon { font-size:13px; }
+  #lp-titlebar .lp-title-text { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #lp-titlebar .lp-close-x {
+    cursor:pointer; width:20px; height:20px; display:flex; align-items:center; justify-content:center;
+    border-radius:2px;
+  }
+  #lp-titlebar .lp-close-x:hover { background:rgba(255,255,255,0.25); }
+
+  #lp-tabsrow {
+    display:flex; align-items:center;
+    background: var(--toolbar-bg);
+    border-bottom:1px solid var(--panel-border);
+    padding:3px 6px;
+    gap:4px;
+    flex-shrink:0;
+  }
+  #lp-symbol-type-select {
+    display:flex; align-items:center; gap:4px;
+    background:#fff;
+    border:1px solid #b0b0b0;
+    border-radius:2px;
+    padding:2px 6px;
+    font-size:12px;
+  }
+  #lp-symbol-type-select select { border:none; background:transparent; font-size:12px; outline:none; }
+
+  #lp-body { flex:1; display:flex; min-height:0; }
+
+  #lp-sidebar {
+    width:150px;
+    background:#e9e9e9;
+    border-right:1px solid var(--panel-border);
+    overflow-y:auto;
+    flex-shrink:0;
+    padding:2px 0;
+  }
+  .lp-side-item {
+    display:flex; align-items:center; gap:8px;
+    padding:6px 10px;
+    cursor:default;
+    color: var(--text);
+    white-space:nowrap;
+  }
+  .lp-side-item .lp-side-icon {
+    width:16px; height:16px; text-align:center; flex-shrink:0; font-size:13px;
+    background-repeat:no-repeat; background-position:center; background-size:16px 16px;
+    display:inline-block;
+  }
+  .lp-side-item:hover { background: var(--hover); }
+  .lp-side-item.active {
+    background: var(--selected);
+    border-left:3px solid var(--accent);
+    padding-left:7px;
+    font-weight:600;
+  }
+
+  #lp-content {
+    flex:1;
+    display:flex; flex-direction:column;
+    min-width:0;
+    overflow:hidden;
+  }
+  .lp-pane { display:none; flex:1; min-height:0; flex-direction:column; overflow:auto; padding:14px 18px; }
+  .lp-pane.active { display:flex; }
+
+  /* --- Aba Simbologia --- */
+  #lp-pane-symbology { padding:0; }
+  #sym-topbar {
+    display:flex; align-items:center; gap:8px;
+    padding:8px 18px 0 18px;
+    flex-shrink:0;
+  }
+  #sym-topbar-search {
+    width:26px; height:24px;
+    border:1px solid #b0b0b0; border-radius:2px;
+    background:#fff;
+    display:flex; align-items:center; justify-content:center;
+    color: var(--text-dim);
+    flex-shrink:0;
+  }
+  #sym-renderer-select {
+    flex:1; height:24px;
+    border:1px solid #b0b0b0; border-radius:2px;
+    background:#fff;
+    display:flex; align-items:center; gap:6px;
+    padding:0 8px;
+    cursor:pointer;
+  }
+  #sym-renderer-select:hover { background: var(--hover); }
+  #sym-renderer-select .sym-renderer-icon {
+    width:14px; height:14px; border-radius:2px;
+    background: linear-gradient(135deg,#3388cc 50%, #232323 50%);
+    flex-shrink:0;
+  }
+  #sym-renderer-select .sym-renderer-arrow { margin-left:auto; color:var(--text-dim); font-size:10px; }
+  #sym-symbol-row {
+    display:flex; gap:14px;
+    padding:14px 18px 10px 18px;
+    flex-shrink:0;
+  }
+  #sym-preview-box {
+    width:78px; height:78px;
+    background:#fff;
+    border:1px solid #9a9a9a;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  #sym-preview-swatch {
+    width:52px; height:52px;
+    border:1px solid rgba(0,0,0,0.4);
+  }
+  #sym-tree-box {
+    flex:1;
+    border:1px solid #b5b5b5;
+    background:#fff;
+    min-height:78px;
+    overflow:auto;
+  }
+  .sym-tree-row {
+    display:flex; align-items:center; gap:6px;
+    padding:4px 8px;
+    cursor:default;
+  }
+  .sym-tree-row.parent { font-weight:600; }
+  .sym-tree-row.child { padding-left:26px; }
+  .sym-tree-row:hover { background: var(--hover); }
+  .sym-tree-row.selected { background: var(--selected); }
+  .sym-tree-swatch {
+    width:14px; height:14px; border:1px solid rgba(0,0,0,0.4); flex-shrink:0;
+  }
+  .sym-tree-toggle { width:12px; color:var(--text-dim); font-size:10px; flex-shrink:0; }
+
+  #sym-controls-box {
+    flex:1;
+    display:flex; flex-direction:column;
+    min-height:0;
+    border-top:1px solid var(--panel-border);
+    padding:12px 18px;
+    overflow-y:auto;
+  }
+  .sym-row {
+    display:flex; align-items:center;
+    margin-bottom:10px;
+    gap:8px;
+  }
+  .sym-row label {
+    width:150px; flex-shrink:0; color:var(--text);
+  }
+  .sym-expr-btn {
+    width:20px; height:20px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid #b0b0b0; border-radius:2px;
+    background:#fff; cursor:pointer; font-size:12px;
+    color:var(--text-dim);
+  }
+  .sym-expr-btn:hover { background: var(--hover); }
+  .sym-style-dropdown {
+    flex:1; height:24px;
+    display:flex; align-items:center; gap:7px;
+    border:1px solid #b0b0b0; border-radius:2px;
+    background:#fff; cursor:pointer;
+    padding:0 6px;
+    position:relative;
+  }
+  .sym-style-dropdown:hover { border-color:#8f8f8f; }
+  .sym-style-dropdown-label { flex:1; font-size:12px; }
+  .sym-style-dropdown-arrow { color:var(--text-dim); font-size:10px; }
+  .sym-style-preview {
+    width:22px; height:16px; flex-shrink:0;
+    border:1px solid #999;
+    background-color:#fff;
+    background-image:
+      linear-gradient(#000 1px, transparent 1px),
+      linear-gradient(90deg, #000 1px, transparent 1px);
+    background-size:0 0;
+  }
+  .sym-style-line-preview {
+    width:26px; height:0; flex-shrink:0;
+    border-top:2px solid #000;
+  }
+  .sym-style-icon-preview { flex-shrink:0; font-size:13px; }
+
+  /* --- Dropdown de padrões de preenchimento (estilo QGIS) --- */
+  #style-list-popover, #line-style-list-popover {
+    display:none;
+    position:fixed;
+    z-index:1000;
+    background:#fff;
+    border:1px solid #8a8a8a;
+    box-shadow:2px 3px 10px rgba(0,0,0,0.3);
+    padding:2px 0;
+    font-size:12px;
+    max-height:340px;
+    overflow-y:auto;
+  }
+  #style-list-popover.show, #line-style-list-popover.show { display:block; }
+  .style-list-row {
+    display:flex; align-items:center; gap:10px;
+    padding:5px 10px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .style-list-row:hover { background: var(--hover); }
+  .style-list-row.selected { background: var(--selected); }
+  .style-list-swatch {
+    width:26px; height:18px; flex-shrink:0;
+    border:1px solid #999;
+    background-color:#fff;
+  }
+  .style-list-line {
+    width:30px; height:0; flex-shrink:0;
+    border-top:2px solid #000;
+  }
+  .sym-color-swatch-btn {
+    flex:1;
+    height:22px;
+    border:1px solid #8f8f8f;
+    border-radius:2px;
+    cursor:pointer;
+    position:relative;
+    display:flex; align-items:center;
+  }
+  .sym-color-swatch-btn::after {
+    content:"▾";
+    position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    color:#fff; text-shadow:0 0 2px rgba(0,0,0,0.6); font-size:10px;
+  }
+  .sym-slider-row { flex:1; display:flex; align-items:center; gap:8px; }
+  .sym-slider-row input[type=range] { flex:1; }
+  .sym-opacity-value {
+    width:64px; flex-shrink:0;
+    border:1px solid #b0b0b0; border-radius:2px;
+    padding:2px 4px; text-align:right;
+    background:#fff;
+  }
+  .sym-unit-select {
+    flex:1;
+    border:1px solid #b0b0b0; border-radius:2px;
+    padding:3px 6px; background:#fff; font-size:12px;
+  }
+  .sym-level-pane { display:flex; flex-direction:column; }
+  .sym-hint {
+    font-size:11.5px; color:var(--text-dim);
+    line-height:1.5;
+    margin: 2px 0 10px 0;
+    padding-left:110px;
+  }
+  .sym-advanced-row {
+    color: var(--accent-dark);
+    cursor:pointer;
+    font-size:12px;
+    margin: 2px 0 10px 0;
+    user-select:none;
+  }
+  .sym-advanced-row:hover { text-decoration:underline; }
+  #sym-advanced-box {
+    border-top:1px dashed var(--divider);
+    padding-top:10px;
+    margin-top:-2px;
+  }
+  .sym-btn-group {
+    flex:1; display:flex; gap:0;
+  }
+  .sym-icon-btn {
+    flex:1;
+    height:24px;
+    border:1px solid #9a9a9a;
+    background:#fff;
+    cursor:pointer;
+    font-size:13px;
+    color: var(--text);
+  }
+  .sym-icon-btn:not(:first-child) { border-left:none; }
+  .sym-icon-btn:hover { background: var(--hover); }
+  .sym-icon-btn.active {
+    background: var(--selected);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  #sym-favorites-row {
+    display:flex; align-items:center; gap:6px;
+    margin: 8px 0 4px 0;
+  }
+  #sym-favorites-search {
+    flex:1; border:1px solid #b0b0b0; border-radius:2px; padding:3px 6px;
+  }
+  #sym-style-table {
+    border:1px solid #b5b5b5;
+    background:#fff;
+    flex:1;
+    min-height:140px;
+    overflow-y:auto;
+  }
+  #sym-style-table table { width:100%; border-collapse:collapse; }
+  #sym-style-table th {
+    position:sticky; top:0;
+    background: var(--toolbar-bg);
+    text-align:left; font-weight:600;
+    padding:4px 8px;
+    border-bottom:1px solid var(--panel-border);
+    font-size:11.5px;
+  }
+  #sym-style-table td {
+    padding:3px 8px;
+    border-bottom:1px solid #eee;
+    white-space:nowrap;
+  }
+  #sym-style-table tr.style-header-row td {
+    background:#f4f4f4;
+    font-weight:600;
+    color:var(--text-dim);
+  }
+  #sym-style-table tr.style-row:hover { background: var(--hover); }
+  #sym-style-table tr.style-row.selected { background: var(--selected); }
+  .style-swatch-cell {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:16px;
+    border:1px solid #999;
+    vertical-align:middle;
+  }
+
+  /* --- Painel de seleção de cor (roda de cores estilo QGIS) --- */
+  #color-picker-popover {
+    display:none;
+    position:fixed;
+    z-index:1000;
+    background:#f0f0f0;
+    border:1px solid #8a8a8a;
+    box-shadow:2px 3px 10px rgba(0,0,0,0.3);
+    padding:10px;
+    width:255px;
+    font-size:12px;
+  }
+  #color-picker-popover.show { display:block; }
+  #color-picker-popover .cp-transparent-row {
+    display:flex; align-items:center; gap:6px;
+    margin-bottom:8px;
+  }
+  #color-picker-popover .cp-transparent-row input[type=checkbox] { margin:0; }
+  #color-picker-popover .cp-wheel-box {
+    position:relative;
+    width:190px; height:190px;
+    margin:2px auto 8px auto;
+    cursor:crosshair;
+    user-select:none;
+  }
+  #color-picker-popover .cp-wheel-box canvas { position:absolute; top:0; left:0; }
+  #color-picker-popover .cp-wheel-handle {
+    position:absolute;
+    width:9px; height:9px;
+    border:2px solid #000;
+    border-radius:50%;
+    box-shadow:0 0 0 1px #fff;
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+  }
+  #color-picker-popover .cp-alpha-row {
+    position:relative;
+    height:16px;
+    margin-bottom:8px;
+    cursor:pointer;
+    background-image:
+      linear-gradient(45deg,#bbb 25%,transparent 25%),
+      linear-gradient(-45deg,#bbb 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#bbb 75%),
+      linear-gradient(-45deg,transparent 75%,#bbb 75%);
+    background-size:8px 8px;
+    background-position:0 0,0 4px,4px -4px,-4px 0px;
+    border:1px solid #999;
+  }
+  #color-picker-popover .cp-alpha-fill {
+    position:absolute; top:0; left:0; right:0; bottom:0;
+  }
+  #color-picker-popover .cp-alpha-handle {
+    position:absolute; top:-2px;
+    width:4px; height:20px;
+    background:#333; border:1px solid #fff;
+    transform:translateX(-50%);
+    pointer-events:none;
+  }
+  #color-picker-popover .cp-hex-row { display:flex; align-items:center; gap:6px; margin-top:2px; }
+  #color-picker-popover .cp-hex-row input { flex:1; border:1px solid #b0b0b0; border-radius:2px; padding:3px 6px; background:#fff; }
+  #color-picker-popover .cp-section-label {
+    background:#c8c8c8; color:#333;
+    font-size:10.5px; font-weight:600;
+    padding:2px 6px; margin:8px 0 4px 0;
+  }
+  #color-picker-popover .cp-swatches { display:grid; grid-template-columns: repeat(8, 1fr); gap:3px; }
+  #color-picker-popover .cp-swatch { width:100%; aspect-ratio:1; border:1px solid rgba(0,0,0,0.3); cursor:pointer; border-radius:1px; }
+  #color-picker-popover .cp-menu {
+    margin-top:6px;
+    border-top:1px solid #ccc;
+    padding-top:4px;
+  }
+  #color-picker-popover .cp-menu-item {
+    padding:4px 4px;
+    cursor:pointer;
+    color:var(--text);
+  }
+  #color-picker-popover .cp-menu-item:hover { background: var(--hover); }
+  #color-picker-popover .cp-menu-item.disabled { color:#a0a0a0; cursor:default; }
+  #color-picker-popover .cp-menu-item.disabled:hover { background:transparent; }
+
+  /* --- Rodapé de botões (OK / Cancelar / Aplicar / Ajuda) --- */
+  #lp-footer {
+    display:flex; align-items:center; gap:6px;
+    padding:8px 14px;
+    border-top:1px solid var(--panel-border);
+    background: var(--toolbar-bg);
+    flex-shrink:0;
+  }
+  #lp-footer .lp-style-dropdown {
+    display:flex; align-items:center; gap:4px;
+    border:1px solid #9a9a9a; border-radius:2px;
+    padding:3px 10px; background:#fff; cursor:pointer;
+  }
+  #lp-footer .lp-spacer { flex:1; }
+  #lp-footer button {
+    background:#fff;
+    border:1px solid #9a9a9a;
+    border-radius:2px;
+    padding:4px 16px;
+    cursor:pointer;
+    font-size:12.5px;
+  }
+  #lp-footer button:hover { background: var(--hover); }
+  #lp-footer button.primary {
+    background: #e2e2e2;
+    font-weight:600;
+  }
+  #lp-footer button.primary:hover { background:#d5d5d5; }
+
+  /* --- Panes simples de placeholder (Informação, Fonte, etc.) --- */
+  .lp-simple-pane h3 { margin-top:0; font-size:13px; color:var(--text); }
+  .lp-simple-pane p { color: var(--text-dim); line-height:1.5; }
+  .lp-kv-table { border-collapse:collapse; width:100%; }
+  .lp-kv-table td { padding:4px 8px; border-bottom:1px solid #e2e2e2; vertical-align:top; }
+  .lp-kv-table td:first-child { color:var(--text-dim); width:160px; }
 </style>
 </head>
 <body>
@@ -895,6 +1386,264 @@
     </div>
   </div>
 
+  <!-- ================= Diálogo: Propriedades da Camada ================= -->
+  <div id="lp-overlay">
+    <div id="lp-window">
+      <div id="lp-titlebar">
+        <span class="lp-title-icon">🗺️</span>
+        <span class="lp-title-text" id="lp-title-text">Propriedades da Camada — Simbologia</span>
+        <span class="lp-close-x" id="lp-close-x" title="Fechar">✕</span>
+      </div>
+
+      <div id="lp-body">
+        <div id="lp-sidebar">
+          <div class="lp-side-item" data-pane="info"><span class="lp-side-icon" style="background-image:url('icons/general.svg')"></span>Informação</div>
+          <div class="lp-side-item" data-pane="fonte"><span class="lp-side-icon" style="background-image:url('icons/gdal.svg')"></span>Fonte</div>
+          <div class="lp-side-item active" data-pane="symbology"><span class="lp-side-icon" style="background-image:url('icons/symbology.svg')"></span>Simbologia</div>
+          <div class="lp-side-item" data-pane="rotulos"><span class="lp-side-icon" style="background-image:url('icons/labels.svg')"></span>Rótulos</div>
+          <div class="lp-side-item" data-pane="mascaras"><span class="lp-side-icon" style="background-image:url('icons/labelmask.svg')"></span>Máscaras</div>
+          <div class="lp-side-item" data-pane="3d"><span class="lp-side-icon" style="background-image:url('icons/pyramids.svg')"></span>Visualização 3D</div>
+          <div class="lp-side-item" data-pane="diagramas"><span class="lp-side-icon" style="background-image:url('icons/diagram.svg')"></span>Diagramas</div>
+          <div class="lp-side-item" data-pane="campos"><span class="lp-side-icon" style="background-image:url('icons/sourcefieldsandforms.svg')"></span>Campos</div>
+          <div class="lp-side-item" data-pane="formulario"><span class="lp-side-icon" style="background-image:url('icons/attributes.svg')"></span>Formulário de Atributos</div>
+          <div class="lp-side-item" data-pane="unioes"><span class="lp-side-icon" style="background-image:url('icons/join.svg')"></span>Uniões</div>
+          <div class="lp-side-item" data-pane="auxiliar"><span class="lp-side-icon" style="background-image:url('icons/database.svg')"></span>Armazenamento Auxiliar</div>
+          <div class="lp-side-item" data-pane="acoes"><span class="lp-side-icon" style="background-image:url('icons/action.svg')"></span>Ações</div>
+          <div class="lp-side-item" data-pane="tela"><span class="lp-side-icon" style="background-image:url('icons/display.svg')"></span>Tela</div>
+          <div class="lp-side-item" data-pane="renderizacao"><span class="lp-side-icon" style="background-image:url('icons/rendering.svg')"></span>Renderização</div>
+          <div class="lp-side-item" data-pane="temporal"><span class="lp-side-icon" style="background-image:url('icons/temporal.svg')"></span>Temporal</div>
+          <div class="lp-side-item" data-pane="variaveis"><span class="lp-side-icon" style="background-image:url('icons/datadefined.svg')"></span>Variáveis</div>
+          <div class="lp-side-item" data-pane="elevacao"><span class="lp-side-icon" style="background-image:url('icons/elevationscale.svg')"></span>Elevação</div>
+          <div class="lp-side-item" data-pane="metadados"><span class="lp-side-icon" style="background-image:url('icons/editmetadata.svg')"></span>Metadados</div>
+          <div class="lp-side-item" data-pane="camada-metadados"><span class="lp-side-icon" style="background-image:url('icons/relations.svg')"></span>Dependências</div>
+          <div class="lp-side-item" data-pane="legenda"><span class="lp-side-icon" style="background-image:url('icons/legend.svg')"></span>Legenda</div>
+          <div class="lp-side-item" data-pane="qgisserver"><span class="lp-side-icon" style="background-image:url('icons/network_and_proxy.svg')"></span>QGIS Server</div>
+          <div class="lp-side-item" data-pane="vetorizacao"><span class="lp-side-icon" style="background-image:url('icons/digitizing.svg')"></span>Vetorização</div>
+        </div>
+
+        <div id="lp-content">
+          <!-- Aba Simbologia -->
+          <div class="lp-pane active" id="lp-pane-symbology">
+            <div id="sym-topbar">
+              <div id="sym-topbar-search"><span>🔍</span></div>
+              <div id="sym-renderer-select">
+                <span class="sym-renderer-icon"></span>
+                <span>Símbolo Simples</span>
+                <span class="sym-renderer-arrow">▾</span>
+              </div>
+            </div>
+            <div id="sym-symbol-row">
+              <div id="sym-preview-box"><div id="sym-preview-swatch"></div></div>
+              <div id="sym-tree-box">
+                <div class="sym-tree-row parent selected" id="sym-tree-parent">
+                  <span class="sym-tree-toggle">▾</span>
+                  <span class="sym-tree-swatch" id="sym-tree-parent-swatch"></span>
+                  <span>Preenchimento</span>
+                </div>
+                <div class="sym-tree-row child" id="sym-tree-child">
+                  <span class="sym-tree-swatch" id="sym-tree-child-swatch"></span>
+                  <span>Preenchimento Simples</span>
+                </div>
+              </div>
+            </div>
+
+            <div id="sym-controls-box">
+              <!-- Painel do nível "Preenchimento" (símbolo raiz) -->
+              <div class="sym-level-pane" id="sym-level-symbol">
+                <div class="sym-row">
+                  <label>Opacidade</label>
+                  <div class="sym-slider-row">
+                    <input type="range" id="sym-symbol-opacity-slider" min="0" max="100" value="100">
+                    <input type="text" class="sym-opacity-value" id="sym-symbol-opacity-value" value="100,0 %">
+                  </div>
+                </div>
+                <div class="sym-hint">Esta opacidade se aplica ao símbolo inteiro (todas as camadas de símbolo combinadas). Selecione <b>Preenchimento Simples</b> na árvore acima para editar cor, contorno e outras propriedades.</div>
+                <div class="sym-advanced-row" id="sym-advanced-toggle-symbol">▸ Avançado</div>
+              </div>
+
+              <!-- Painel do nível "Preenchimento Simples" (camada de símbolo) -->
+              <div class="sym-level-pane" id="sym-level-layer" style="display:none;">
+                <div class="sym-row">
+                  <label>Cor do preenchimento</label>
+                  <div class="sym-color-swatch-btn" id="sym-color-btn" data-target="fill"></div>
+                  <span class="sym-expr-btn" title="Dados definidos por substituição">🖉</span>
+                </div>
+                <div class="sym-row">
+                  <label>Estilo do preenchimento</label>
+                  <div class="sym-style-dropdown" id="sym-fillstyle-dropdown" data-value="solid">
+                    <span class="sym-style-preview" id="sym-fillstyle-preview"></span>
+                    <span class="sym-style-dropdown-label" id="sym-fillstyle-label">Sólido</span>
+                    <span class="sym-style-dropdown-arrow">▾</span>
+                  </div>
+                  <span class="sym-expr-btn" title="Dados definidos por substituição">🖉</span>
+                </div>
+                <div class="sym-row">
+                  <label>Cor do traço</label>
+                  <div class="sym-color-swatch-btn" id="sym-stroke-color-btn" data-target="stroke"></div>
+                  <span class="sym-expr-btn" title="Dados definidos por substituição">🖉</span>
+                </div>
+                <div class="sym-row">
+                  <label>Largura do traço</label>
+                  <div class="sym-slider-row">
+                    <input type="text" class="sym-opacity-value" id="sym-strokewidth-value" value="0,260000" style="text-align:left; width:auto; flex:1;">
+                    <select class="sym-unit-select" id="sym-unit-select" style="flex:0 0 130px;">
+                      <option>Milímetros</option>
+                      <option>Pontos de Mapa</option>
+                      <option>Pixels</option>
+                      <option>Polegadas</option>
+                      <option>Metros no Mapa</option>
+                    </select>
+                  </div>
+                  <span class="sym-expr-btn" title="Dados definidos por substituição">🖉</span>
+                </div>
+                <div class="sym-row">
+                  <label>Estilo do traço</label>
+                  <div class="sym-style-dropdown" id="sym-strokestyle-dropdown" data-value="solid">
+                    <span class="sym-style-line-preview" id="sym-strokestyle-preview"></span>
+                    <span class="sym-style-dropdown-label" id="sym-strokestyle-label">Linha sólida</span>
+                    <span class="sym-style-dropdown-arrow">▾</span>
+                  </div>
+                  <span class="sym-expr-btn" title="Dados definidos por substituição">🖉</span>
+                </div>
+                <div class="sym-row">
+                  <label>Estilo da união</label>
+                  <div class="sym-style-dropdown" id="sym-joinstyle-dropdown" data-value="bevel">
+                    <span class="sym-style-icon-preview">📐</span>
+                    <span class="sym-style-dropdown-label" id="sym-joinstyle-label">Chanfrado</span>
+                    <span class="sym-style-dropdown-arrow">▾</span>
+                  </div>
+                  <span class="sym-expr-btn" title="Dados definidos por substituição">🖉</span>
+                </div>
+                <div class="sym-row" style="align-items:flex-start;">
+                  <label style="margin-top:4px;">Deslocamento</label>
+                  <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                    <div class="sym-slider-row" style="gap:6px;">
+                      <span style="width:14px; flex-shrink:0; color:var(--text-dim);">x</span>
+                      <input type="text" class="sym-opacity-value" id="sym-offset-x-value" value="0,000000" style="text-align:left; flex:1;">
+                      <select class="sym-unit-select" id="sym-offset-unit-select" style="flex:0 0 130px;">
+                        <option>Milímetros</option>
+                        <option>Pontos de Mapa</option>
+                        <option>Pixels</option>
+                        <option>Polegadas</option>
+                        <option>Metros no Mapa</option>
+                      </select>
+                    </div>
+                    <div class="sym-slider-row" style="gap:6px;">
+                      <span style="width:14px; flex-shrink:0; color:var(--text-dim);">y</span>
+                      <input type="text" class="sym-opacity-value" id="sym-offset-value" value="0,000000" style="text-align:left; flex:1;">
+                      <span style="flex:0 0 130px;"></span>
+                    </div>
+                  </div>
+                  <span class="sym-expr-btn" title="Dados definidos por substituição" style="margin-top:4px;">🖉</span>
+                </div>
+
+
+                <div class="sym-advanced-row" id="sym-advanced-toggle-layer">▸ Avançado</div>
+                <div id="sym-advanced-box" style="display:none;">
+                  <div class="sym-row">
+                    <label>Estilo de ponta</label>
+                    <div class="sym-btn-group" id="sym-capstyle-group">
+                      <button type="button" class="sym-icon-btn" data-value="square" title="Square">▭</button>
+                      <button type="button" class="sym-icon-btn active" data-value="flat" title="Flat">▬</button>
+                      <button type="button" class="sym-icon-btn" data-value="round" title="Round">▮</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="sym-favorites-row">
+                <span>🔍</span>
+                <input type="text" id="sym-favorites-search" placeholder="Favoritos">
+              </div>
+
+              <div id="sym-style-table">
+                <table>
+                  <thead><tr><th style="width:26px"></th><th>Nome</th><th>Etiquetas</th></tr></thead>
+                  <tbody id="sym-style-table-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panes simples (placeholders informativos, não editáveis) -->
+          <div class="lp-pane lp-simple-pane" id="lp-pane-info">
+            <h3>Informação</h3>
+            <table class="lp-kv-table" id="lp-info-table"></table>
+          </div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-fonte">
+            <h3>Fonte</h3>
+            <table class="lp-kv-table" id="lp-fonte-table"></table>
+          </div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-rotulos"><h3>Rótulos</h3><p>Configuração de rotulagem de feições (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-mascaras"><h3>Máscaras</h3><p>Máscaras de rótulo/símbolo (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-3d"><h3>Visualização 3D</h3><p>Configurações de renderização 3D (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-diagramas"><h3>Diagramas</h3><p>Diagramas de atributos sobre a camada (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-campos"><h3>Campos</h3><p id="lp-campos-list"></p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-formulario"><h3>Formulário de Atributos</h3><p>Editor de formulário de atributos (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-unioes"><h3>Uniões</h3><p>Uniões com outras camadas/tabelas (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-auxiliar"><h3>Armazenamento Auxiliar</h3><p>Campos auxiliares armazenados localmente (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-acoes"><h3>Ações</h3><p>Ações de camada configuráveis (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-tela"><h3>Tela</h3><p>Configurações de escala de visibilidade (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-renderizacao"><h3>Renderização</h3><p>Controles de renderização em camada (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-temporal"><h3>Temporal</h3><p>Configuração de dados temporais (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-variaveis"><h3>Variáveis</h3><p>Variáveis de expressão da camada (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-elevacao"><h3>Elevação</h3><p>Propriedades de elevação (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-metadados"><h3>Metadados</h3><p>Metadados da camada (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-camada-metadados"><h3>Dependências</h3><p>Dependências entre camadas (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-legenda"><h3>Legenda</h3><p>Configuração de exibição na legenda (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-qgisserver"><h3>QGIS Server</h3><p>Configurações de publicação via QGIS Server (não implementado nesta simulação).</p></div>
+          <div class="lp-pane lp-simple-pane" id="lp-pane-vetorizacao"><h3>Vetorização</h3><p>Configurações de vetorização/digitalização da camada (não implementado nesta simulação).</p></div>
+        </div>
+      </div>
+
+      <div id="lp-footer">
+        <div class="lp-style-dropdown" id="lp-style-dropdown-btn">Estilo <span style="font-size:10px">▾</span></div>
+        <div class="lp-spacer"></div>
+        <button class="primary" id="lp-btn-ok">OK</button>
+        <button id="lp-btn-cancel">Cancelar</button>
+        <button id="lp-btn-apply">Aplicar</button>
+        <button id="lp-btn-help">Ajuda</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Popover de seleção de cor -->
+  <div id="color-picker-popover">
+    <div class="cp-transparent-row">
+      <input type="checkbox" id="cp-transparent-checkbox">
+      <label for="cp-transparent-checkbox">Preenchimento Transparente</label>
+    </div>
+    <div class="cp-wheel-box" id="cp-wheel-box">
+      <canvas id="cp-wheel-canvas" width="190" height="190"></canvas>
+      <div class="cp-wheel-handle" id="cp-wheel-handle"></div>
+    </div>
+    <div class="cp-alpha-row" id="cp-alpha-row">
+      <div class="cp-alpha-fill" id="cp-alpha-fill"></div>
+      <div class="cp-alpha-handle" id="cp-alpha-handle"></div>
+    </div>
+    <div class="cp-hex-row">
+      <span>#</span>
+      <input type="text" id="cp-hex-input" maxlength="6">
+    </div>
+    <div class="cp-section-label">Cores recentes</div>
+    <div class="cp-swatches" id="cp-recent-swatches"></div>
+    <div class="cp-section-label">Cores Padrão</div>
+    <div class="cp-swatches" id="cp-standard-swatches"></div>
+    <div class="cp-menu">
+      <div class="cp-menu-item" id="cp-menu-copy">Copiar Cor</div>
+      <div class="cp-menu-item disabled" id="cp-menu-paste">Colar Cor</div>
+      <div class="cp-menu-item" id="cp-menu-pick">Capturar Cor</div>
+      <div class="cp-menu-item" id="cp-menu-choose">Escolher Cor...</div>
+    </div>
+  </div>
+  <input type="color" id="cp-native-color" style="position:fixed; top:-100px; left:-100px; width:1px; height:1px; opacity:0; pointer-events:none;">
+
+  <!-- Popover de lista: Estilo do preenchimento -->
+  <div id="style-list-popover"></div>
+
+  <!-- Popover de lista: Estilo do traço -->
+  <div id="line-style-list-popover"></div>
+
   <div id="attr-panel" class="collapsed">
     <div id="attr-resize-handle" title="Arraste para redimensionar"></div>
     <div id="attr-header">
@@ -1004,7 +1753,43 @@
     editMode: false,
   };
 
-  const PALETTE = ['#3388cc', '#e6194b', '#3cb44b', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c'];
+  // ---------------- Cor de camada: reproduz o QGIS (QgsLimitedRandomColorRamp) ----------------
+  // O QGIS sorteia uma cor aleatória por camada nova dentro de faixas HSV fixas
+  // (hue 0–359, saturação 100–240 e valor 200–240, numa escala de 0–255), o que gera
+  // tons vivos mas suaves — nunca cinzas nem excessivamente escuros/claros.
+  // Fonte: DEFAULT_RANDOM_HUE_MIN/MAX, DEFAULT_RANDOM_SAT_MIN/MAX, DEFAULT_RANDOM_VAL_MIN/MAX
+  // em qgscolorrampimpl.h (QgsLimitedRandomColorRamp), usada por fetchRandomStyleColor().
+  function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+  function hsvToHex(h, s, v) {
+    // h em graus [0,360); s e v normalizados [0,1]
+    const c = v * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = v - c;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    const toHex = (v01) => Math.round((v01 + m) * 255).toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  function randomQgisStyleColor() {
+    const hue = randomInt(0, 359);
+    const sat = randomInt(100, 240) / 255; // satMin/satMax do QGIS, escala 0-255
+    const val = randomInt(200, 240) / 255; // valMin/valMax do QGIS, escala 0-255
+    return hsvToHex(hue, sat, val);
+  }
+
+  // Contorno padrão do QGIS para preenchimentos simples: cinza bem escuro (quase preto),
+  // sempre nesta cor fixa — independente da cor de preenchimento sorteada — e bem fino
+  // (DEFAULT_SIMPLEFILL_BORDERCOLOR = rgb(35,35,35); DEFAULT_SIMPLEFILL_BORDERWIDTH = 0.26mm).
+  const QGIS_STROKE_COLOR = '#232323';
+  const QGIS_STROKE_WEIGHT = 1; // ~0.26mm a 96dpi (0.26mm * 96/25.4 ≈ 0.98px)
+  const QGIS_FILL_OPACITY = 1;  // o QGIS preenche de forma opaca por padrão (sem transparência)
 
   function toast(msg, ms = 2600) {
     const el = document.getElementById('toast');
@@ -1039,9 +1824,46 @@
   });
 
   // ---------------- Botões da toolbar (estilo QGIS) ----------------
-  // Zoom in/out (equivalentes aos controles + / - do Leaflet, só que na toolbar).
-  document.getElementById('btn-zoom-in').addEventListener('click', () => state.map.zoomIn());
-  document.getElementById('btn-zoom-out').addEventListener('click', () => state.map.zoomOut());
+  // Zoom in/out: ativam um "modo de ferramenta" — o cursor vira lupa e um clique
+  // no mapa aplica o zoom centrado exatamente no ponto clicado (como no QGIS real).
+  // Clicar de novo no botão ativo (ou no botão Pan) desliga o modo.
+  let activeZoomMode = null; // 'in' | 'out' | null
+  const btnZoomIn = document.getElementById('btn-zoom-in');
+  const btnZoomOut = document.getElementById('btn-zoom-out');
+  const mapEl = document.getElementById('map');
+
+  function stopZoomMode() {
+    activeZoomMode = null;
+    btnZoomIn.classList.remove('active');
+    btnZoomOut.classList.remove('active');
+    mapEl.classList.remove('zoom-in-cursor', 'zoom-out-cursor');
+  }
+
+  function startZoomMode(mode) {
+    const btn = mode === 'in' ? btnZoomIn : btnZoomOut;
+    const wasActive = btn.classList.contains('active');
+    stopActiveDraw();
+    stopMeasure();
+    stopZoomMode();
+    if (wasActive) return; // clicar de novo no botão ativo só desliga o modo
+
+    activeZoomMode = mode;
+    btn.classList.add('active');
+    mapEl.classList.add(mode === 'in' ? 'zoom-in-cursor' : 'zoom-out-cursor');
+  }
+
+  btnZoomIn.addEventListener('click', () => startZoomMode('in'));
+  btnZoomOut.addEventListener('click', () => startZoomMode('out'));
+
+  // Clique no mapa, com o modo de zoom ativo: aplica zoom centrado no ponto clicado.
+  state.map.on('click', (e) => {
+    if (!activeZoomMode) return;
+    const delta = activeZoomMode === 'in' ? 1 : -1;
+    state.map.setZoomAround(e.latlng, state.map.getZoom() + delta);
+  });
+
+  // Voltar para o modo Pan (padrão) desliga qualquer modo de zoom ativo.
+  document.getElementById('btn-pan').addEventListener('click', stopZoomMode);
 
   // Abrir tabela de atributos: expande o painel de atributos (mesmo painel do botão ▲/▼).
   document.getElementById('btn-open-attr').addEventListener('click', () => {
@@ -1294,13 +2116,13 @@
   });
 
   function addLayer(name, geojson, restoreOptions = {}) {
-    const color = restoreOptions.color || PALETTE[state.layers.length % PALETTE.length];
+    const color = restoreOptions.color || randomQgisStyleColor();
     const id = state.nextId++;
 
     const leafletLayer = L.geoJSON(geojson, {
-      style: () => ({ color, weight: 2, fillOpacity: 0.35, fillColor: color }),
+      style: () => ({ color: QGIS_STROKE_COLOR, weight: QGIS_STROKE_WEIGHT, fillOpacity: QGIS_FILL_OPACITY, fillColor: color }),
       pointToLayer: (feature, latlng) =>
-        L.circleMarker(latlng, { radius: 5, color, weight: 2, fillOpacity: 0.6, fillColor: color }),
+        L.circleMarker(latlng, { radius: 5, color: QGIS_STROKE_COLOR, weight: QGIS_STROKE_WEIGHT, fillOpacity: QGIS_FILL_OPACITY, fillColor: color }),
       onEachFeature: (feature, layer) => {
         layer.on('click', () => selectFeatureRow(id, feature));
       },
@@ -1599,6 +2421,7 @@
     const panel = document.getElementById('attr-panel');
     const collapsed = panel.classList.toggle('collapsed');
     document.getElementById('attr-toggle').textContent = collapsed ? '▲ expandir' : '▼ recolher';
+    applyAttrLayout();
   });
 
   // ================= Tabela de atributos: redimensionar e mudar de lado (dock) =================
@@ -1942,9 +2765,9 @@
       state.map.removeLayer(layer.leafletLayer);
       drawGroup.clearLayers();
       L.geoJSON(layer.geojson, {
-        style: () => ({ color: layer.color, weight: 2, fillOpacity: 0.35, fillColor: layer.color }),
+        style: () => ({ color: QGIS_STROKE_COLOR, weight: QGIS_STROKE_WEIGHT, fillOpacity: QGIS_FILL_OPACITY, fillColor: layer.color }),
         pointToLayer: (feature, latlng) =>
-          L.circleMarker(latlng, { radius: 5, color: layer.color, weight: 2, fillOpacity: 0.6, fillColor: layer.color }),
+          L.circleMarker(latlng, { radius: 5, color: QGIS_STROKE_COLOR, weight: QGIS_STROKE_WEIGHT, fillOpacity: QGIS_FILL_OPACITY, fillColor: layer.color }),
       }).eachLayer(l => drawGroup.addLayer(l));
 
       leafletDrawControl = new L.EditToolbar.Edit(state.map, {
@@ -1999,6 +2822,7 @@
 
     const wasActive = document.getElementById(btnId).classList.contains('active');
     stopActiveDraw();
+    stopZoomMode();
     if (wasActive) return; // clicar de novo no botão ativo só desliga
 
     document.getElementById(btnId).classList.add('active');
@@ -2057,6 +2881,7 @@
     const wasActive = document.getElementById('btn-measure').classList.contains('active');
     stopMeasure();
     stopActiveDraw();
+    stopZoomMode();
     if (wasActive) {
       document.getElementById('measure-result').classList.remove('show');
       return;
@@ -2534,6 +3359,934 @@
 
   // Aplica o estado salvo/padrão assim que a interface carrega
   applyTbVisibility();
+
+  // ================= Diálogo: Propriedades da Camada — Simbologia funcional =================
+  (function initLayerPropertiesDialog() {
+    const overlay = document.getElementById('lp-overlay');
+    const titleText = document.getElementById('lp-title-text');
+    const sidebarItems = Array.from(document.querySelectorAll('.lp-side-item'));
+    const panes = Array.from(document.querySelectorAll('.lp-pane'));
+
+    const previewSwatch = document.getElementById('sym-preview-swatch');
+    const treeParentSwatch = document.getElementById('sym-tree-parent-swatch');
+    const treeChildSwatch = document.getElementById('sym-tree-child-swatch');
+    const colorBtn = document.getElementById('sym-color-btn');
+    const strokeColorBtn = document.getElementById('sym-stroke-color-btn');
+    const unitSelect = document.getElementById('sym-unit-select');
+    const fillStyleDropdown = document.getElementById('sym-fillstyle-dropdown');
+    const fillStylePreview = document.getElementById('sym-fillstyle-preview');
+    const fillStyleLabel = document.getElementById('sym-fillstyle-label');
+    const strokeStyleDropdown = document.getElementById('sym-strokestyle-dropdown');
+    const strokeStylePreview = document.getElementById('sym-strokestyle-preview');
+    const strokeStyleLabel = document.getElementById('sym-strokestyle-label');
+    const strokeWidthValue = document.getElementById('sym-strokewidth-value');
+    const symbolOpacitySlider = document.getElementById('sym-symbol-opacity-slider');
+    const symbolOpacityValue = document.getElementById('sym-symbol-opacity-value');
+    const offsetValue = document.getElementById('sym-offset-value');
+    const offsetXValue = document.getElementById('sym-offset-x-value');
+    const joinStyleDropdown = document.getElementById('sym-joinstyle-dropdown');
+    const joinStyleLabel = document.getElementById('sym-joinstyle-label');
+    const capStyleGroup = document.getElementById('sym-capstyle-group');
+    const levelSymbolPane = document.getElementById('sym-level-symbol');
+    const levelLayerPane = document.getElementById('sym-level-layer');
+    const styleTableBody = document.getElementById('sym-style-table-body');
+    const favoritesSearch = document.getElementById('sym-favorites-search');
+
+    // Simuladores de <select>, expõem .value / .value= para o resto do código continuar funcionando
+    const fillStyleSelect = {
+      get value() { return fillStyleDropdown.dataset.value; },
+      set value(v) { setFillStyleValue(v); },
+    };
+    const strokeStyleSelect = {
+      get value() { return strokeStyleDropdown.dataset.value; },
+      set value(v) { setStrokeStyleValue(v); },
+    };
+
+    // Estado temporário do diálogo (editado até clicar em OK/Aplicar)
+    let editingLayerId = null;
+    let draft = {
+      color: '#3caf3c',
+      opacity: 100,        // opacidade do símbolo inteiro (0-100)
+      fillStyle: 'solid',
+      strokeColor: '#232323',
+      strokeStyle: 'solid',
+      strokeWidth: 0.26,   // mm
+      unit: 'Milímetros',
+      joinStyle: 'bevel',
+      capStyle: 'flat',
+      offset: 0,           // mm
+    };
+
+    function hexToRgb(hex) {
+      const h = hex.replace('#', '');
+      return {
+        r: parseInt(h.substring(0, 2), 16),
+        g: parseInt(h.substring(2, 4), 16),
+        b: parseInt(h.substring(4, 6), 16),
+      };
+    }
+    function rgbaFromHexAndOpacity(hex, opacityPct) {
+      const { r, g, b } = hexToRgb(hex);
+      return `rgba(${r}, ${g}, ${b}, ${(opacityPct / 100).toFixed(2)})`;
+    }
+
+    // Gera o CSS de fundo do preview considerando estilo de preenchimento (sólido/hachura/sem preenchimento)
+    function fillBackgroundCss(hex, opacityPct, fillStyle) {
+      const rgba = rgbaFromHexAndOpacity(hex, opacityPct);
+      if (fillStyle === 'none') return '#fff';
+      if (fillStyle === 'solid' || !fillStyle) return rgba;
+      const angleMap = { horizontal: '0deg', vertical: '90deg', fdiag: '135deg', bdiag: '45deg' };
+      if (angleMap[fillStyle]) {
+        return `repeating-linear-gradient(${angleMap[fillStyle]}, ${rgba}, ${rgba} 2px, #fff 2px, #fff 6px)`;
+      }
+      if (fillStyle === 'cross') {
+        return `repeating-linear-gradient(0deg, ${rgba}, ${rgba} 2px, transparent 2px, transparent 6px),
+                repeating-linear-gradient(90deg, ${rgba}, ${rgba} 2px, transparent 2px, transparent 6px)`;
+      }
+      if (fillStyle === 'diagcross') {
+        return `repeating-linear-gradient(45deg, ${rgba}, ${rgba} 2px, transparent 2px, transparent 6px),
+                repeating-linear-gradient(135deg, ${rgba}, ${rgba} 2px, transparent 2px, transparent 6px)`;
+      }
+      if (fillStyle === 'dense1') {
+        return `repeating-linear-gradient(45deg, ${rgba}, ${rgba} 3px, #fff 3px, #fff 4px)`;
+      }
+      return rgba;
+    }
+
+    function strokeBorderCss() {
+      if (draft.strokeStyle === 'none') return 'none';
+      const widthPx = Math.max(1, Math.round(draft.strokeWidth * 3.5));
+      const styleMap = { solid: 'solid', dash: 'dashed', dot: 'dotted', dashdot: 'dashed', dashdotdot: 'dotted' };
+      return `${widthPx}px ${styleMap[draft.strokeStyle] || 'solid'} ${draft.strokeColor}`;
+    }
+
+    function refreshPreview() {
+      const bg = fillBackgroundCss(draft.color, draft.opacity, draft.fillStyle);
+      const border = strokeBorderCss();
+      [previewSwatch, treeChildSwatch].forEach(el => {
+        el.style.background = bg;
+        el.style.border = border;
+      });
+      // O nó "Preenchimento" (raiz) reflete só a cor de preenchimento, sem depender do estilo de contorno da camada filha
+      treeParentSwatch.style.background = fillBackgroundCss(draft.color, draft.opacity, draft.fillStyle);
+      treeParentSwatch.style.border = '1px solid rgba(0,0,0,0.4)';
+      colorBtn.style.background = rgbaFromHexAndOpacity(draft.color, 100);
+      strokeColorBtn.style.background = draft.strokeStyle === 'none' ? '#fff' : draft.strokeColor;
+    }
+
+    function setSymbolOpacityUI(pct) {
+      draft.opacity = Math.max(0, Math.min(100, pct));
+      symbolOpacitySlider.value = draft.opacity;
+      symbolOpacityValue.value = draft.opacity.toFixed(1).replace('.', ',') + ' %';
+      refreshPreview();
+    }
+    symbolOpacitySlider.addEventListener('input', () => setSymbolOpacityUI(parseFloat(symbolOpacitySlider.value)));
+    symbolOpacityValue.addEventListener('change', () => {
+      const n = parseFloat(symbolOpacityValue.value.replace(',', '.').replace('%', '').trim());
+      if (!isNaN(n)) setSymbolOpacityUI(n);
+      else symbolOpacityValue.value = draft.opacity.toFixed(1).replace('.', ',') + ' %';
+    });
+
+    function setStrokeWidthUI(mm) {
+      draft.strokeWidth = Math.max(0, mm);
+      strokeWidthValue.value = draft.strokeWidth.toFixed(6).replace('.', ',');
+      refreshPreview();
+    }
+    strokeWidthValue.addEventListener('change', () => {
+      const n = parseFloat(strokeWidthValue.value.replace(',', '.').trim());
+      if (!isNaN(n)) setStrokeWidthUI(n);
+      else strokeWidthValue.value = draft.strokeWidth.toFixed(6).replace('.', ',');
+    });
+
+    function setOffsetUI(mm) {
+      draft.offset = mm;
+      offsetValue.value = draft.offset.toFixed(6).replace('.', ',');
+    }
+    offsetValue.addEventListener('change', () => {
+      const n = parseFloat(offsetValue.value.replace(',', '.').trim());
+      if (!isNaN(n)) setOffsetUI(n);
+      else offsetValue.value = draft.offset.toFixed(6).replace('.', ',');
+    });
+    if (offsetXValue) {
+      offsetXValue.addEventListener('change', () => {
+        const n = parseFloat(offsetXValue.value.replace(',', '.').trim());
+        if (isNaN(n)) offsetXValue.value = '0,000000';
+      });
+    }
+
+    // ---- Padrões de "Estilo do preenchimento" (com preview visual, como no QGIS) ----
+    const FILL_STYLE_OPTIONS = [
+      { value: 'solid', label: 'Sólido', pattern: 'solid' },
+      { value: 'none', label: 'Sem pincel', pattern: 'none' },
+      { value: 'horizontal', label: 'Horizontal', pattern: 'horizontal' },
+      { value: 'vertical', label: 'Vertical', pattern: 'vertical' },
+      { value: 'cross', label: 'Cruz', pattern: 'cross' },
+      { value: 'bdiag', label: 'BDiagonal', pattern: 'bdiag' },
+      { value: 'fdiag', label: 'FDiagonal', pattern: 'fdiag' },
+      { value: 'diagcross', label: 'Diagonal X', pattern: 'diagcross' },
+      { value: 'dense1', label: 'Denso 1', pattern: 'dense1' },
+      { value: 'dense2', label: 'Denso 2', pattern: 'dense2' },
+      { value: 'dense3', label: 'Denso 3', pattern: 'dense3' },
+      { value: 'dense4', label: 'Denso 4', pattern: 'dense4' },
+      { value: 'dense5', label: 'Denso 5', pattern: 'dense5' },
+      { value: 'dense6', label: 'Denso 6', pattern: 'dense6' },
+      { value: 'dense7', label: 'Denso 7', pattern: 'dense7' },
+    ];
+    function fillPatternCss(pattern) {
+      switch (pattern) {
+        case 'solid': return { backgroundColor:'#000', backgroundImage:'none' };
+        case 'none': return { backgroundColor:'#fff', backgroundImage:'none' };
+        case 'horizontal': return { backgroundColor:'#fff', backgroundImage:'repeating-linear-gradient(0deg,#000 0 1px,transparent 1px 5px)' };
+        case 'vertical': return { backgroundColor:'#fff', backgroundImage:'repeating-linear-gradient(90deg,#000 0 1px,transparent 1px 5px)' };
+        case 'cross': return { backgroundColor:'#fff', backgroundImage:'repeating-linear-gradient(0deg,#000 0 1px,transparent 1px 5px),repeating-linear-gradient(90deg,#000 0 1px,transparent 1px 5px)' };
+        case 'bdiag': return { backgroundColor:'#fff', backgroundImage:'repeating-linear-gradient(45deg,#000 0 1px,transparent 1px 5px)' };
+        case 'fdiag': return { backgroundColor:'#fff', backgroundImage:'repeating-linear-gradient(-45deg,#000 0 1px,transparent 1px 5px)' };
+        case 'diagcross': return { backgroundColor:'#fff', backgroundImage:'repeating-linear-gradient(45deg,#000 0 1px,transparent 1px 5px),repeating-linear-gradient(-45deg,#000 0 1px,transparent 1px 5px)' };
+        case 'dense1': return { backgroundColor:'#000', backgroundImage:'radial-gradient(#fff 30%,transparent 30%)', backgroundSize:'4px 4px' };
+        case 'dense2': return { backgroundColor:'#000', backgroundImage:'radial-gradient(#fff 22%,transparent 22%)', backgroundSize:'4px 4px' };
+        case 'dense3': return { backgroundColor:'#fff', backgroundImage:'radial-gradient(#000 45%,transparent 45%)', backgroundSize:'4px 4px' };
+        case 'dense4': return { backgroundColor:'#fff', backgroundImage:'radial-gradient(#000 35%,transparent 35%)', backgroundSize:'4px 4px' };
+        case 'dense5': return { backgroundColor:'#fff', backgroundImage:'radial-gradient(#000 25%,transparent 25%)', backgroundSize:'4px 4px' };
+        case 'dense6': return { backgroundColor:'#fff', backgroundImage:'radial-gradient(#000 15%,transparent 15%)', backgroundSize:'4px 4px' };
+        case 'dense7': return { backgroundColor:'#fff', backgroundImage:'radial-gradient(#000 8%,transparent 8%)', backgroundSize:'4px 4px' };
+        default: return { backgroundColor:'#000', backgroundImage:'none' };
+      }
+    }
+    function applyFillPatternToEl(el, pattern) {
+      const css = fillPatternCss(pattern);
+      el.style.backgroundColor = css.backgroundColor;
+      el.style.backgroundImage = css.backgroundImage;
+      if (css.backgroundSize) el.style.backgroundSize = css.backgroundSize;
+    }
+    function setFillStyleValue(value) {
+      const opt = FILL_STYLE_OPTIONS.find(o => o.value === value) || FILL_STYLE_OPTIONS[0];
+      fillStyleDropdown.dataset.value = opt.value;
+      fillStyleLabel.textContent = opt.label;
+      applyFillPatternToEl(fillStylePreview, opt.pattern);
+    }
+    function buildFillStylePopover() {
+      const pop = document.getElementById('style-list-popover');
+      pop.innerHTML = '';
+      FILL_STYLE_OPTIONS.forEach(opt => {
+        const row = document.createElement('div');
+        row.className = 'style-list-row' + (opt.value === draft.fillStyle ? ' selected' : '');
+        const sw = document.createElement('span');
+        sw.className = 'style-list-swatch';
+        applyFillPatternToEl(sw, opt.pattern);
+        const lbl = document.createElement('span');
+        lbl.textContent = opt.label;
+        row.appendChild(sw);
+        row.appendChild(lbl);
+        row.addEventListener('click', () => {
+          draft.fillStyle = opt.value;
+          setFillStyleValue(opt.value);
+          closeStyleListPopover();
+          refreshPreview();
+        });
+        pop.appendChild(row);
+      });
+      return pop;
+    }
+    function closeStyleListPopover() { document.getElementById('style-list-popover').classList.remove('show'); }
+    fillStyleDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pop = buildFillStylePopover();
+      const rect = fillStyleDropdown.getBoundingClientRect();
+      pop.style.left = rect.left + 'px';
+      pop.style.top = (rect.bottom + 2) + 'px';
+      pop.style.width = rect.width + 'px';
+      pop.classList.add('show');
+    });
+
+    // ---- Padrões de "Estilo do traço" (com preview visual de linha) ----
+    const LINE_STYLE_OPTIONS = [
+      { value: 'solid', label: 'Linha sólida', dash: 'none' },
+      { value: 'none', label: 'No Line', dash: 'blank' },
+      { value: 'dash', label: 'Linha tracejada', dash: '6,4' },
+      { value: 'dot', label: 'Linha pontilhada', dash: '1,3' },
+      { value: 'dashdot', label: 'Linha com traço + ponto', dash: '6,3,1,3' },
+      { value: 'dashdotdot', label: 'Linha com traço + 2 pontos', dash: '6,3,1,3,1,3' },
+    ];
+    function applyLineDashToEl(el, dash) {
+      if (dash === 'blank') { el.style.borderTop = 'none'; return; }
+      el.style.borderTop = '2px solid #000';
+      el.style.borderImage = dash === 'none' ? 'none' : '';
+      el.style.background = 'none';
+      if (dash === 'none') { el.style.borderTopStyle = 'solid'; }
+      else {
+        el.style.borderTopStyle = 'dashed';
+        if (dash === '1,3') el.style.borderTopStyle = 'dotted';
+      }
+    }
+    function setStrokeStyleValue(value) {
+      const opt = LINE_STYLE_OPTIONS.find(o => o.value === value) || LINE_STYLE_OPTIONS[0];
+      strokeStyleDropdown.dataset.value = opt.value;
+      strokeStyleLabel.textContent = opt.label;
+      applyLineDashToEl(strokeStylePreview, opt.dash);
+      const disablesWidth = opt.value === 'none';
+      strokeWidthValue.disabled = disablesWidth;
+    }
+    function buildLineStylePopover() {
+      const pop = document.getElementById('line-style-list-popover');
+      pop.innerHTML = '';
+      LINE_STYLE_OPTIONS.forEach(opt => {
+        const row = document.createElement('div');
+        row.className = 'style-list-row' + (opt.value === draft.strokeStyle ? ' selected' : '');
+        const ln = document.createElement('span');
+        ln.className = 'style-list-line';
+        applyLineDashToEl(ln, opt.dash);
+        const lbl = document.createElement('span');
+        lbl.textContent = opt.label;
+        row.appendChild(ln);
+        row.appendChild(lbl);
+        row.addEventListener('click', () => {
+          draft.strokeStyle = opt.value;
+          setStrokeStyleValue(opt.value);
+          closeLineStyleListPopover();
+          refreshPreview();
+        });
+        pop.appendChild(row);
+      });
+      return pop;
+    }
+    function closeLineStyleListPopover() { document.getElementById('line-style-list-popover').classList.remove('show'); }
+    strokeStyleDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pop = buildLineStylePopover();
+      const rect = strokeStyleDropdown.getBoundingClientRect();
+      pop.style.left = rect.left + 'px';
+      pop.style.top = (rect.bottom + 2) + 'px';
+      pop.style.width = rect.width + 'px';
+      pop.classList.add('show');
+    });
+
+    document.addEventListener('click', (e) => {
+      const stylePop = document.getElementById('style-list-popover');
+      const linePop = document.getElementById('line-style-list-popover');
+      if (stylePop.classList.contains('show') && !stylePop.contains(e.target) && e.target !== fillStyleDropdown && !fillStyleDropdown.contains(e.target)) closeStyleListPopover();
+      if (linePop.classList.contains('show') && !linePop.contains(e.target) && e.target !== strokeStyleDropdown && !strokeStyleDropdown.contains(e.target)) closeLineStyleListPopover();
+    });
+
+    // ---- "Estilo da união" (dropdown simples com 3 opções) ----
+    const JOIN_STYLE_OPTIONS = [
+      { value: 'bevel', label: 'Chanfrado' },
+      { value: 'miter', label: 'Esquadria' },
+      { value: 'round', label: 'Arredondado' },
+    ];
+    function setJoinStyleValue(value) {
+      const opt = JOIN_STYLE_OPTIONS.find(o => o.value === value) || JOIN_STYLE_OPTIONS[0];
+      joinStyleDropdown.dataset.value = opt.value;
+      joinStyleLabel.textContent = opt.label;
+    }
+    function buildJoinStylePopover() {
+      const pop = document.getElementById('line-style-list-popover');
+      pop.innerHTML = '';
+      JOIN_STYLE_OPTIONS.forEach(opt => {
+        const row = document.createElement('div');
+        row.className = 'style-list-row' + (opt.value === draft.joinStyle ? ' selected' : '');
+        const lbl = document.createElement('span');
+        lbl.textContent = opt.label;
+        row.appendChild(lbl);
+        row.addEventListener('click', () => {
+          draft.joinStyle = opt.value;
+          setJoinStyleValue(opt.value);
+          closeLineStyleListPopover();
+        });
+        pop.appendChild(row);
+      });
+      return pop;
+    }
+    joinStyleDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pop = buildJoinStylePopover();
+      const rect = joinStyleDropdown.getBoundingClientRect();
+      pop.style.left = rect.left + 'px';
+      pop.style.top = (rect.bottom + 2) + 'px';
+      pop.style.width = rect.width + 'px';
+      pop.classList.add('show');
+    });
+
+    unitSelect.addEventListener('change', () => { draft.unit = unitSelect.value; });
+
+    function setActiveInGroup(group, value) {
+      Array.from(group.querySelectorAll('.sym-icon-btn')).forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.value === value);
+      });
+    }
+    capStyleGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.sym-icon-btn');
+      if (!btn) return;
+      draft.capStyle = btn.dataset.value;
+      setActiveInGroup(capStyleGroup, draft.capStyle);
+    });
+
+    // ---- "Avançado" — expande/recolhe Cap/Offset, igual ao QGIS ----
+    function wireAdvancedToggle(toggleEl, boxEl) {
+      toggleEl.addEventListener('click', () => {
+        const isOpen = boxEl.style.display !== 'none';
+        boxEl.style.display = isOpen ? 'none' : 'block';
+        toggleEl.textContent = (isOpen ? '▸' : '▾') + ' Avançado';
+      });
+    }
+    wireAdvancedToggle(document.getElementById('sym-advanced-toggle-layer'), document.getElementById('sym-advanced-box'));
+    document.getElementById('sym-advanced-toggle-symbol').addEventListener('click', () => {
+      toast('Nenhuma opção avançada adicional para o símbolo neste nível.');
+    });
+
+    // ---- Popover de cor (roda de cores estilo QGIS, reutilizado para Cor de preenchimento e Cor da borda) ----
+    const cpPopover = document.getElementById('color-picker-popover');
+    const cpNative = document.getElementById('cp-native-color');
+    const cpHex = document.getElementById('cp-hex-input');
+    const cpWheelBox = document.getElementById('cp-wheel-box');
+    const cpWheelCanvas = document.getElementById('cp-wheel-canvas');
+    const cpWheelHandle = document.getElementById('cp-wheel-handle');
+    const cpAlphaRow = document.getElementById('cp-alpha-row');
+    const cpAlphaFill = document.getElementById('cp-alpha-fill');
+    const cpAlphaHandle = document.getElementById('cp-alpha-handle');
+    const cpTransparentCheckbox = document.getElementById('cp-transparent-checkbox');
+    const cpRecentSwatchesEl = document.getElementById('cp-recent-swatches');
+    const cpStandardSwatchesEl = document.getElementById('cp-standard-swatches');
+    let cpTarget = 'fill'; // 'fill' | 'stroke'
+    let cpHue = 120, cpSat = 1, cpVal = 1, cpAlpha = 100;
+    let recentColors = [];
+
+    const STANDARD_COLORS = [
+      '#000000', '#ffffff', '#a4d8f0', '#3b96e3', '#8be084', '#f4a9a9', '#e83b3b', '#f4a742',
+    ];
+    function renderSwatchRow(el, colors) {
+      el.innerHTML = '';
+      colors.forEach(c => {
+        const sw = document.createElement('div');
+        sw.className = 'cp-swatch';
+        sw.style.background = c;
+        sw.title = c;
+        sw.addEventListener('click', () => { setColorFromHex(c); });
+        el.appendChild(sw);
+      });
+    }
+    renderSwatchRow(cpStandardSwatchesEl, STANDARD_COLORS);
+    function pushRecentColor(hex) {
+      recentColors = recentColors.filter(c => c.toLowerCase() !== hex.toLowerCase());
+      recentColors.unshift(hex);
+      if (recentColors.length > 16) recentColors = recentColors.slice(0, 16);
+      renderSwatchRow(cpRecentSwatchesEl, recentColors);
+    }
+
+    function hsvToHex(h, s, v) {
+      const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+      let r=0,g=0,b=0;
+      if (h < 60) { r=c; g=x; b=0; } else if (h < 120) { r=x; g=c; b=0; }
+      else if (h < 180) { r=0; g=c; b=x; } else if (h < 240) { r=0; g=x; b=c; }
+      else if (h < 300) { r=c; g=0; b=x; } else { r=x; g=0; b=c; }
+      const toHex = (n) => Math.round((n + m) * 255).toString(16).padStart(2, '0');
+      return '#' + toHex(r) + toHex(g) + toHex(b);
+    }
+    function hexToHsv(hex) {
+      const r = parseInt(hex.substr(1,2),16)/255, g = parseInt(hex.substr(3,2),16)/255, b = parseInt(hex.substr(5,2),16)/255;
+      const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+      let h = 0;
+      if (d !== 0) {
+        if (max === r) h = 60 * (((g - b) / d) % 6);
+        else if (max === g) h = 60 * ((b - r) / d + 2);
+        else h = 60 * ((r - g) / d + 4);
+      }
+      if (h < 0) h += 360;
+      const s = max === 0 ? 0 : d / max;
+      return { h, s, v: max };
+    }
+
+    function drawColorWheel() {
+      const ctx = cpWheelCanvas.getContext('2d');
+      const size = 190, cx = size / 2, cy = size / 2, rOuter = size / 2 - 2, rInner = rOuter - 18;
+      ctx.clearRect(0, 0, size, size);
+      // Anel de matiz (hue ring)
+      for (let angle = 0; angle < 360; angle += 1) {
+        const rad = (angle - 90) * Math.PI / 180;
+        ctx.strokeStyle = `hsl(${angle},100%,50%)`;
+        ctx.lineWidth = rOuter - rInner;
+        ctx.beginPath();
+        ctx.arc(cx, cy, (rOuter + rInner) / 2, rad, rad + (2 * Math.PI / 360) + 0.02);
+        ctx.stroke();
+      }
+      // Triângulo de saturação/valor
+      const triR = rInner - 4;
+      const hueRad = (cpHue - 90) * Math.PI / 180;
+      const p1 = { x: cx + triR * Math.cos(hueRad), y: cy + triR * Math.sin(hueRad) };
+      const p2 = { x: cx + triR * Math.cos(hueRad + 2.0944), y: cy + triR * Math.sin(hueRad + 2.0944) };
+      const p3 = { x: cx + triR * Math.cos(hueRad - 2.0944), y: cy + triR * Math.sin(hueRad - 2.0944) };
+      const imgSize = size;
+      const imgData = ctx.createImageData(imgSize, imgSize);
+      function sign(a,b,c) { return (a.x-c.x)*(b.y-c.y)-(b.x-c.x)*(a.y-c.y); }
+      function inTriangle(pt) {
+        const d1 = sign(pt,p1,p2), d2 = sign(pt,p2,p3), d3 = sign(pt,p3,p1);
+        const hasNeg = (d1<0)||(d2<0)||(d3<0), hasPos = (d1>0)||(d2>0)||(d3>0);
+        return !(hasNeg && hasPos);
+      }
+      const fullColor = hsvToHex(cpHue, 1, 1);
+      const fr = parseInt(fullColor.substr(1,2),16), fg = parseInt(fullColor.substr(3,2),16), fb = parseInt(fullColor.substr(5,2),16);
+      for (let y = 0; y < imgSize; y++) {
+        for (let x = 0; x < imgSize; x++) {
+          const pt = { x, y };
+          const idx = (y * imgSize + x) * 4;
+          if (inTriangle(pt)) {
+            const areaTot = sign(p1,p2,p3);
+            const w1 = sign(pt,p2,p3) / areaTot;
+            const w2 = sign(p1,pt,p3) / areaTot;
+            const w3 = 1 - w1 - w2;
+            const rr = 255*w1 + fr*w2 + 0*w3;
+            const gg = 255*w1 + fg*w2 + 0*w3;
+            const bb = 255*w1 + fb*w2 + 0*w3;
+            imgData.data[idx] = rr; imgData.data[idx+1] = gg; imgData.data[idx+2] = bb; imgData.data[idx+3] = 255;
+          } else {
+            imgData.data[idx+3] = 0;
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+      cpWheelTri = { cx, cy, triR, hueRad, p1, p2, p3 };
+    }
+    let cpWheelTri = null;
+
+    function updateWheelHandlePosition() {
+      if (!cpWheelTri) return;
+      const { p1, p2, p3 } = cpWheelTri;
+      const w1 = cpVal * (1 - cpSat);
+      const w2 = cpVal * cpSat;
+      const w3 = 1 - w1 - w2;
+      const x = p1.x * w1 + p2.x * w2 + p3.x * w3;
+      const y = p1.y * w1 + p2.y * w2 + p3.y * w3;
+      cpWheelHandle.style.left = x + 'px';
+      cpWheelHandle.style.top = y + 'px';
+    }
+
+    function updateAlphaBar() {
+      const hex = hsvToHex(cpHue, cpSat, cpVal);
+      cpAlphaFill.style.background = `linear-gradient(to right, rgba(0,0,0,0), ${hex})`;
+      cpAlphaHandle.style.left = (cpAlpha / 100 * cpAlphaRow.offsetWidth) + 'px';
+    }
+
+    function currentTargetColor() { return cpTarget === 'stroke' ? draft.strokeColor : draft.color; }
+
+    function applyDraftColor(hex) {
+      if (cpTarget === 'stroke') draft.strokeColor = hex; else draft.color = hex;
+      cpHex.value = hex.replace('#', '').toUpperCase();
+      refreshPreview();
+    }
+
+    function setColorFromHex(hex) {
+      const hsv = hexToHsv(hex);
+      cpHue = hsv.h; cpSat = hsv.s; cpVal = hsv.v;
+      drawColorWheel();
+      updateWheelHandlePosition();
+      updateAlphaBar();
+      applyDraftColor(hex);
+    }
+
+    function setColorFromHsv() {
+      const hex = hsvToHex(cpHue, cpSat, cpVal);
+      updateWheelHandlePosition();
+      updateAlphaBar();
+      applyDraftColor(hex);
+    }
+
+    function openColorPopover(anchorEl, target) {
+      cpTarget = target;
+      const rect = anchorEl.getBoundingClientRect();
+      const cur = currentTargetColor();
+      const hsv = hexToHsv(cur);
+      cpHue = hsv.h; cpSat = hsv.s; cpVal = hsv.v; cpAlpha = 100;
+      cpHex.value = cur.replace('#', '').toUpperCase();
+      cpTransparentCheckbox.checked = (cpTarget === 'fill' && draft.fillStyle === 'none') || (cpTarget === 'stroke' && draft.strokeStyle === 'none');
+      cpPopover.classList.add('show');
+      drawColorWheel();
+      updateWheelHandlePosition();
+      updateAlphaBar();
+      let top = rect.bottom + 4;
+      let left = rect.left;
+      const popW = 255, popH = 470;
+      if (left + popW > window.innerWidth) left = window.innerWidth - popW - 8;
+      if (top + popH > window.innerHeight) top = Math.max(8, rect.top - popH - 4);
+      cpPopover.style.top = top + 'px';
+      cpPopover.style.left = left + 'px';
+    }
+    function closeColorPopover() {
+      cpPopover.classList.remove('show');
+      pushRecentColor(currentTargetColor());
+    }
+
+    colorBtn.addEventListener('click', (e) => { e.stopPropagation(); openColorPopover(colorBtn, 'fill'); });
+    strokeColorBtn.addEventListener('click', (e) => { e.stopPropagation(); openColorPopover(strokeColorBtn, 'stroke'); });
+
+    // Interação de arraste na roda/triângulo
+    let cpDragMode = null; // 'hue' | 'triangle' | null
+    function wheelPointFromEvent(e) {
+      const rect = cpWheelBox.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    function handleWheelPointer(e) {
+      const pt = wheelPointFromEvent(e);
+      const size = 190, cx = size/2, cy = size/2;
+      const dx = pt.x - cx, dy = pt.y - cy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const rOuter = size/2 - 2, rInner = rOuter - 18;
+      if (cpDragMode === 'hue' || (cpDragMode === null && dist >= rInner && dist <= rOuter)) {
+        cpDragMode = 'hue';
+        let angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+        if (angle < 0) angle += 360;
+        cpHue = angle;
+        drawColorWheel();
+        setColorFromHsv();
+      } else if (cpWheelTri) {
+        cpDragMode = 'triangle';
+        const { p1, p2, p3 } = cpWheelTri;
+        const areaTot = (p2.y-p3.y)*(p1.x-p3.x)+(p3.x-p2.x)*(p1.y-p3.y);
+        let w1 = ((p2.y-p3.y)*(pt.x-p3.x)+(p3.x-p2.x)*(pt.y-p3.y)) / areaTot;
+        let w2 = ((p3.y-p1.y)*(pt.x-p3.x)+(p1.x-p3.x)*(pt.y-p3.y)) / areaTot;
+        let w3 = 1 - w1 - w2;
+        w1 = Math.max(0, w1); w2 = Math.max(0, w2); w3 = Math.max(0, w3);
+        const sum = w1 + w2 + w3;
+        w1/=sum; w2/=sum; w3/=sum;
+        cpVal = w2 + w3;
+        cpSat = cpVal > 0.0001 ? w2 / cpVal : 0;
+        setColorFromHsv();
+      }
+    }
+    cpWheelBox.addEventListener('mousedown', (e) => { cpDragMode = null; handleWheelPointer(e); });
+    document.addEventListener('mousemove', (e) => { if (cpDragMode) handleWheelPointer(e); });
+    document.addEventListener('mouseup', () => { cpDragMode = null; });
+
+    // Interação na barra de alfa
+    let cpAlphaDragging = false;
+    function handleAlphaPointer(e) {
+      const rect = cpAlphaRow.getBoundingClientRect();
+      let pct = (e.clientX - rect.left) / rect.width * 100;
+      pct = Math.max(0, Math.min(100, pct));
+      cpAlpha = pct;
+      updateAlphaBar();
+    }
+    cpAlphaRow.addEventListener('mousedown', (e) => { cpAlphaDragging = true; handleAlphaPointer(e); });
+    document.addEventListener('mousemove', (e) => { if (cpAlphaDragging) handleAlphaPointer(e); });
+    document.addEventListener('mouseup', () => { cpAlphaDragging = false; });
+
+    cpHex.addEventListener('change', () => {
+      let v = cpHex.value.replace('#', '').trim();
+      if (/^[0-9a-fA-F]{6}$/.test(v)) setColorFromHex('#' + v.toLowerCase());
+    });
+
+    cpTransparentCheckbox.addEventListener('change', () => {
+      const isTransparent = cpTransparentCheckbox.checked;
+      if (cpTarget === 'fill') {
+        draft.fillStyle = isTransparent ? 'none' : (fillStyleSelect.value === 'none' ? 'solid' : fillStyleSelect.value);
+        fillStyleSelect.value = draft.fillStyle;
+      } else {
+        draft.strokeStyle = isTransparent ? 'none' : (strokeStyleSelect.value === 'none' ? 'solid' : strokeStyleSelect.value);
+        strokeStyleSelect.value = draft.strokeStyle;
+        strokeWidthValue.disabled = draft.strokeStyle === 'none';
+      }
+      refreshPreview();
+    });
+
+    document.getElementById('cp-menu-copy').addEventListener('click', () => {
+      navigator.clipboard && navigator.clipboard.writeText(currentTargetColor()).catch(() => {});
+      toast('Cor copiada.');
+      closeColorPopover();
+    });
+    document.getElementById('cp-menu-pick').addEventListener('click', () => {
+      toast('Capturar cor da tela não disponível nesta simulação.');
+    });
+    document.getElementById('cp-menu-choose').addEventListener('click', (e) => {
+      e.stopPropagation();
+      cpNative.value = currentTargetColor();
+      cpNative.click();
+    });
+    cpNative.addEventListener('input', () => setColorFromHex(cpNative.value));
+
+    document.addEventListener('click', (e) => {
+      if (cpPopover.classList.contains('show') && !cpPopover.contains(e.target)
+          && e.target !== colorBtn && e.target !== strokeColorBtn) {
+        closeColorPopover();
+      }
+    });
+
+    // ---- Tabela "Estilos do p... / Padrão" (lista de estilos pré-definidos, decorativa e clicável) ----
+    const STYLE_PRESETS = [
+      { name: 'gradien...', tag: 'Showcase', kind: 'gradient' },
+      { name: 'gray 3 fill', tag: 'Grayscale', color: '#8c8c8c' },
+      { name: 'hashed...', tag: 'Grayscale', kind: 'hatch', color: '#8c8c8c' },
+      { name: 'hashed...', tag: 'Grayscale', kind: 'hatch', color: '#6e6e6e' },
+      { name: 'hashed...', tag: 'Grayscale', kind: 'hatch', color: '#4a4a4a' },
+      { name: 'outline ...', tag: 'Colorful', kind: 'outline', color: '#3388cc' },
+      { name: 'outline ...', tag: 'Colorful', kind: 'outline', color: '#3cb44b' },
+      { name: 'outline ...', tag: 'Colorful', kind: 'outline', color: '#e6194b' },
+      { name: 'outline ...', tag: 'Showcase', kind: 'outline', color: '#e6194b' },
+      { name: 'pattern...', tag: 'Grayscale', kind: 'hatch', color: '#7a7a7a' },
+      { name: 'pattern...', tag: 'Showcase', kind: 'hatch', color: '#e08020' },
+      { name: 'simple ...', tag: 'Colorful', color: '#3d7ab5' },
+      { name: 'simple ...', tag: 'Colorful', color: '#3cb44b' },
+      { name: 'simple ...', tag: 'Colorful', color: '#c9c9c9' },
+    ];
+
+    function buildStyleTable() {
+      styleTableBody.innerHTML = '';
+      const headerRow1 = document.createElement('tr');
+      headerRow1.className = 'style-header-row';
+      headerRow1.innerHTML = `<td colspan="3">Estilos do p...</td>`;
+      styleTableBody.appendChild(headerRow1);
+      const headerRow2 = document.createElement('tr');
+      headerRow2.className = 'style-header-row';
+      headerRow2.innerHTML = `<td colspan="3">Padrão</td>`;
+      styleTableBody.appendChild(headerRow2);
+
+      STYLE_PRESETS.forEach((preset, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = 'style-row';
+        tr.dataset.idx = idx;
+        const swatchColor = preset.color || '#3388cc';
+        let swatchHtml;
+        if (preset.kind === 'outline') {
+          swatchHtml = `<span class="style-swatch-cell" style="background:#fff;border-color:${swatchColor}"></span>`;
+        } else if (preset.kind === 'gradient') {
+          swatchHtml = `<span class="style-swatch-cell" style="background:linear-gradient(90deg,#3388cc,#e6194b)"></span>`;
+        } else if (preset.kind === 'hatch') {
+          swatchHtml = `<span class="style-swatch-cell" style="background:repeating-linear-gradient(45deg, ${swatchColor}, ${swatchColor} 2px, #fff 2px, #fff 5px)"></span>`;
+        } else {
+          swatchHtml = `<span class="style-swatch-cell" style="background:${swatchColor}"></span>`;
+        }
+        tr.innerHTML = `<td>${swatchHtml}</td><td>${preset.name}</td><td>${preset.tag}</td>`;
+        tr.addEventListener('click', () => {
+          styleTableBody.querySelectorAll('tr.style-row').forEach(r => r.classList.remove('selected'));
+          tr.classList.add('selected');
+          if (preset.color) {
+            draft.color = preset.color;
+            if (preset.kind === 'outline') { draft.fillStyle = 'none'; draft.strokeColor = preset.color; draft.strokeStyle = 'solid'; fillStyleSelect.value = 'none'; strokeStyleSelect.value = 'solid'; }
+            else if (preset.kind === 'hatch') { draft.fillStyle = 'fdiag'; fillStyleSelect.value = 'fdiag'; }
+            else { draft.fillStyle = 'solid'; fillStyleSelect.value = 'solid'; }
+            refreshPreview();
+          }
+        });
+        styleTableBody.appendChild(tr);
+      });
+    }
+    buildStyleTable();
+
+    favoritesSearch.addEventListener('input', () => {
+      const q = favoritesSearch.value.trim().toLowerCase();
+      styleTableBody.querySelectorAll('tr.style-row').forEach(tr => {
+        const txt = tr.textContent.toLowerCase();
+        tr.style.display = (!q || txt.includes(q)) ? '' : 'none';
+      });
+    });
+
+    // ---- Navegação entre abas da sidebar ----
+    function selectPane(paneKey) {
+      sidebarItems.forEach(it => it.classList.toggle('active', it.dataset.pane === paneKey));
+      panes.forEach(p => p.classList.remove('active'));
+      const map = {
+        info: 'lp-pane-info', fonte: 'lp-pane-fonte', symbology: 'lp-pane-symbology',
+        rotulos: 'lp-pane-rotulos', mascaras: 'lp-pane-mascaras', '3d': 'lp-pane-3d',
+        diagramas: 'lp-pane-diagramas', campos: 'lp-pane-campos', formulario: 'lp-pane-formulario',
+        unioes: 'lp-pane-unioes', auxiliar: 'lp-pane-auxiliar', acoes: 'lp-pane-acoes',
+        tela: 'lp-pane-tela', renderizacao: 'lp-pane-renderizacao', temporal: 'lp-pane-temporal',
+        variaveis: 'lp-pane-variaveis', elevacao: 'lp-pane-elevacao', metadados: 'lp-pane-metadados',
+        'camada-metadados': 'lp-pane-camada-metadados', legenda: 'lp-pane-legenda', qgisserver: 'lp-pane-qgisserver',
+        vetorizacao: 'lp-pane-vetorizacao',
+      };
+      const target = document.getElementById(map[paneKey]);
+      if (target) target.classList.add('active');
+      const titleMap = {
+        info: 'Informação', fonte: 'Fonte', symbology: 'Simbologia', rotulos: 'Rótulos',
+        mascaras: 'Máscaras', '3d': 'Visualização 3D', diagramas: 'Diagramas', campos: 'Campos',
+        formulario: 'Formulário de Atributos', unioes: 'Uniões', auxiliar: 'Armazenamento Auxiliar',
+        acoes: 'Ações', tela: 'Tela', renderizacao: 'Renderização', temporal: 'Temporal',
+        variaveis: 'Variáveis', elevacao: 'Elevação', metadados: 'Metadados',
+        'camada-metadados': 'Dependências', legenda: 'Legenda', qgisserver: 'QGIS Server',
+        vetorizacao: 'Vetorização',
+      };
+      const layer = state.layers.find(l => l.id === editingLayerId);
+      titleText.textContent = `Propriedades da Camada — ${layer ? layer.name : ''} — ${titleMap[paneKey]}`;
+    }
+    sidebarItems.forEach(it => it.addEventListener('click', () => selectPane(it.dataset.pane)));
+
+    // ---- Navegação entre níveis da árvore de símbolo (Preenchimento / Preenchimento Simples) ----
+    function selectTreeLevel(level) {
+      document.querySelectorAll('.sym-tree-row').forEach(r => r.classList.remove('selected'));
+      if (level === 'symbol') {
+        document.getElementById('sym-tree-parent').classList.add('selected');
+        levelSymbolPane.style.display = 'flex';
+        levelLayerPane.style.display = 'none';
+      } else {
+        document.getElementById('sym-tree-child').classList.add('selected');
+        levelSymbolPane.style.display = 'none';
+        levelLayerPane.style.display = 'flex';
+      }
+    }
+    document.getElementById('sym-tree-parent').addEventListener('click', () => selectTreeLevel('symbol'));
+    document.getElementById('sym-tree-child').addEventListener('click', () => selectTreeLevel('layer'));
+    // Recolher/expandir a árvore (toggle ▾/▸) — apenas oculta a linha filha
+    document.querySelector('#sym-tree-parent .sym-tree-toggle').addEventListener('click', function (e) {
+      e.stopPropagation();
+      const child = document.getElementById('sym-tree-child');
+      const collapsed = child.style.display === 'none';
+      child.style.display = collapsed ? 'flex' : 'none';
+      this.textContent = collapsed ? '▾' : '▸';
+    });
+
+    // ---- Preenche panes "Informação" / "Fonte" / "Campos" com dados reais da camada ----
+    function fillSimplePanes(layer) {
+      const infoTable = document.getElementById('lp-info-table');
+      const nFeatures = layer.geojson.features.length;
+      const geomType = nFeatures ? (layer.geojson.features[0].geometry ? layer.geojson.features[0].geometry.type : '—') : '—';
+      infoTable.innerHTML = `
+        <tr><td>Nome</td><td>${layer.name}</td></tr>
+        <tr><td>Tipo de geometria</td><td>${geomType}</td></tr>
+        <tr><td>Nº de feições</td><td>${nFeatures}</td></tr>
+        <tr><td>CRS</td><td>WGS 84 (EPSG:4326)</td></tr>
+        <tr><td>Visível</td><td>${layer.visible ? 'Sim' : 'Não'}</td></tr>
+      `;
+      const fonteTable = document.getElementById('lp-fonte-table');
+      fonteTable.innerHTML = `
+        <tr><td>Nome da camada</td><td>${layer.name}</td></tr>
+        <tr><td>Provedor</td><td>OGR / GeoJSON (memória)</td></tr>
+        <tr><td>Codificação</td><td>UTF-8</td></tr>
+      `;
+      const camposEl = document.getElementById('lp-campos-list');
+      const keys = new Set();
+      layer.geojson.features.forEach(f => Object.keys(f.properties || {}).forEach(k => keys.add(k)));
+      camposEl.textContent = keys.size ? ('Campos: ' + Array.from(keys).join(', ')) : 'Nenhum campo de atributo definido.';
+    }
+
+    // ---- Abre o diálogo para uma camada específica ----
+    function openForLayer(layerId) {
+      const layer = state.layers.find(l => l.id === layerId);
+      if (!layer) { toast('Nenhuma camada selecionada.'); return; }
+      editingLayerId = layerId;
+      const saved = layer.symbology || {};
+      draft = {
+        color: layer.color || '#3caf3c',
+        opacity: saved.opacity !== undefined ? saved.opacity : (layer.fillOpacityPct !== undefined ? layer.fillOpacityPct : 100),
+        fillStyle: saved.fillStyle || 'solid',
+        strokeColor: saved.strokeColor || '#232323',
+        strokeStyle: saved.strokeStyle || 'solid',
+        strokeWidth: saved.strokeWidth !== undefined ? saved.strokeWidth : 0.26,
+        unit: saved.unit || 'Milímetros',
+        joinStyle: saved.joinStyle || 'bevel',
+        capStyle: saved.capStyle || 'flat',
+        offset: saved.offset || 0,
+      };
+      setSymbolOpacityUI(draft.opacity);
+      setStrokeWidthUI(draft.strokeWidth);
+      setOffsetUI(draft.offset);
+      fillStyleSelect.value = draft.fillStyle;
+      strokeStyleSelect.value = draft.strokeStyle;
+      unitSelect.value = draft.unit;
+      setJoinStyleValue(draft.joinStyle);
+      setActiveInGroup(capStyleGroup, draft.capStyle);
+      strokeWidthValue.disabled = draft.strokeStyle === 'none';
+      refreshPreview();
+      selectTreeLevel('layer');
+      fillSimplePanes(layer);
+      selectPane('symbology');
+      overlay.classList.add('show');
+    }
+
+    function closeDialog() {
+      overlay.classList.remove('show');
+      closeColorPopover();
+      editingLayerId = null;
+    }
+
+    // ---- Aplica as mudanças de fato na camada Leaflet + lista de camadas ----
+    function applyChangesToLayer() {
+      const layer = state.layers.find(l => l.id === editingLayerId);
+      if (!layer) return;
+      layer.color = draft.color;
+      layer.fillOpacityPct = draft.opacity;
+      layer.symbology = { ...draft };
+
+      const fillOpacity = draft.fillStyle === 'none' ? 0 : (draft.opacity / 100);
+      const strokeOpacity = draft.strokeStyle === 'none' ? 0 : 1;
+      const dashArrayMap = {
+        solid: null, dash: '6,4', dot: '1,3', dashdot: '6,3,1,3', dashdotdot: '6,3,1,3,1,3', none: null,
+      };
+      const lineCapMap = { square: 'square', flat: 'butt', round: 'round' };
+      const lineJoinMap = { bevel: 'bevel', miter: 'miter', round: 'round' };
+      // Conversão aproximada de mm -> px (mesma escala usada nas outras camadas: ~0.98px por 0.26mm)
+      const strokeWeightPx = Math.max(0.5, draft.strokeWidth * (1 / 0.26));
+
+      const newStyle = {
+        fillColor: draft.color,
+        fillOpacity: fillOpacity,
+        color: draft.strokeColor,
+        weight: strokeWeightPx,
+        opacity: strokeOpacity,
+        dashArray: dashArrayMap[draft.strokeStyle],
+        lineCap: lineCapMap[draft.capStyle],
+        lineJoin: lineJoinMap[draft.joinStyle],
+      };
+
+      if (layer.leafletLayer && typeof layer.leafletLayer.eachLayer === 'function') {
+        layer.leafletLayer.eachLayer(sub => {
+          if (typeof sub.setStyle === 'function') sub.setStyle(newStyle);
+        });
+      } else if (layer.leafletLayer && typeof layer.leafletLayer.setStyle === 'function') {
+        layer.leafletLayer.setStyle(newStyle);
+      }
+
+      renderLayerList();
+      if (typeof scheduleAutosave === 'function') scheduleAutosave();
+      toast(`Simbologia da camada "${layer.name}" atualizada.`);
+    }
+
+    document.getElementById('lp-btn-apply').addEventListener('click', applyChangesToLayer);
+    document.getElementById('lp-btn-ok').addEventListener('click', () => { applyChangesToLayer(); closeDialog(); });
+    document.getElementById('lp-btn-cancel').addEventListener('click', closeDialog);
+    document.getElementById('lp-close-x').addEventListener('click', closeDialog);
+    document.getElementById('lp-btn-help').addEventListener('click', () => toast('Ajuda não disponível nesta simulação.'));
+    document.getElementById('lp-style-dropdown-btn').addEventListener('click', () => toast('Menu de estilo não implementado nesta simulação.'));
+    const rendererSelectEl = document.getElementById('sym-renderer-select');
+    if (rendererSelectEl) {
+      rendererSelectEl.addEventListener('click', () => toast('Apenas o renderizador "Símbolo Simples" está disponível nesta simulação.'));
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && overlay.classList.contains('show')) closeDialog();
+    });
+
+    // ---- Gatilhos de abertura: duplo clique na camada + "Propriedades..." do menu de contexto ----
+    document.getElementById('layer-list').addEventListener('dblclick', (e) => {
+      const row = e.target.closest('.layer-row');
+      if (!row) return;
+      // localiza o id da camada a partir da posição (mesma lógica de renderLayerList: mais recente no topo)
+      const idx = Array.from(document.getElementById('layer-list').children).indexOf(row);
+      const reversedLayers = [...state.layers].reverse();
+      const layer = reversedLayers[idx];
+      if (layer) openForLayer(layer.id);
+    });
+
+    const layerCtxMenu = document.getElementById('layer-context-menu');
+    if (layerCtxMenu) {
+      const propItem = Array.from(layerCtxMenu.querySelectorAll('.dd-item')).find(
+        it => it.textContent.trim().startsWith('Propriedades')
+      );
+      if (propItem) {
+        propItem.addEventListener('click', () => {
+          layerCtxMenu.classList.remove('show');
+          if (state.selectedLayerId != null) openForLayer(state.selectedLayerId);
+          else toast('Selecione uma camada primeiro.');
+        });
+      }
+    }
+
+    // Atalho Ctrl+Shift+P do menu "Camada" também abre (se houver camada selecionada)
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
+        if (state.selectedLayerId != null) {
+          e.preventDefault();
+          openForLayer(state.selectedLayerId);
+        }
+      }
+    });
+  })();
 </script>
 </body>
 </html>
