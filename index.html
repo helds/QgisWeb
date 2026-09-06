@@ -23,6 +23,7 @@
     --selected:#cfe4f7;
     --statusbar-bg:#e0e0e0;
     --divider:#c4c4c4;
+    --toolbar-divider-line:#8a8a8a;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -117,24 +118,30 @@
   }
 
   /* ---------- Toolbar ---------- */
+  /* Cada fileira de ferramentas (#toolbar, #toolbar2, #toolbar3) é independente:
+     nenhuma quebra de linha (flex-wrap) é compartilhada entre elas, então ocultar
+     um grupo em uma fileira nunca reorganiza as outras. Uma margem vertical pequena
+     + borda escura entre fileiras marca visualmente onde uma termina e a outra começa. */
   #toolbar {
     display:flex; align-items:center;
     background: var(--toolbar-bg);
-    border-bottom: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--toolbar-divider-line);
     padding: 3px 6px;
-    height: 34px;
+    height: 38px;
     flex-shrink:0;
     gap: 2px;
+    margin-bottom: 2px;
+    overflow:hidden;
   }
   .tool-btn {
     display:flex; align-items:center; justify-content:center;
-    width: 34px; height: 34px;
+    width: 32px; height: 32px;
     border: 1px solid transparent;
     border-radius: 3px;
     background-color: transparent;
     background-repeat: no-repeat;
     background-position: center;
-    background-size: 25px 25px;
+    background-size: 24px 24px;
     cursor: pointer;
     font-size: 15px;
     color: var(--text);
@@ -192,15 +199,29 @@
   .drag-handle:active { cursor: grabbing; }
 
   /* ---------- Drag-and-drop de grupos de ferramentas ---------- */
-  .toolbar-group.tg-dragging { opacity:.35; }
-  .toolbar-group.tg-drop-before {
-    box-shadow: inset 3px 0 0 0 var(--accent);
-  }
-  .toolbar-group.tg-drop-after {
-    box-shadow: inset -3px 0 0 0 var(--accent);
+  /* Grupo (e alça/separador) sendo arrastado: fica translúcido no lugar de origem,
+     como no QGIS real, em vez de sumir completamente. */
+  .toolbar-group.tg-dragging,
+  .drag-handle.tg-dragging,
+  .toolbar-sep.tg-dragging {
+    opacity:.35;
+    filter: grayscale(.15);
   }
   #toolbar.tg-drop-target-empty, #toolbar2.tg-drop-target-empty {
     box-shadow: inset 0 0 0 2px var(--accent);
+  }
+
+  /* Placeholder azul: mostra o espaço exato que o grupo vai ocupar ao soltar,
+     inserido entre os grupos existentes (como o retângulo azul do QGIS). */
+  .tg-drop-placeholder {
+    flex-shrink:0;
+    align-self: stretch;
+    background: rgba(51,136,204,0.22);
+    border: 1px dashed var(--accent);
+    border-radius: 3px;
+    margin: 2px 1px;
+    pointer-events: none;
+    transition: width .06s ease-out;
   }
 
   /* pequena seta de dropdown ao lado de uma ferramenta com variantes */
@@ -216,14 +237,29 @@
   .tool-group { display:flex; align-items:center; }
 
   #toolbar2 {
-    display:flex; align-items:center; flex-wrap:wrap;
+    display:flex; align-items:center;
     background: var(--toolbar-bg);
-    border-bottom: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--toolbar-divider-line);
     padding: 3px 6px;
-    min-height: 34px;
+    height: 38px;
     flex-shrink:0;
-    gap: 2px 0;
-    row-gap: 2px;
+    gap: 2px;
+    margin-bottom: 2px;
+    overflow:hidden;
+  }
+  /* Terceira fileira de ferramentas (digitalização avançada, formas, rótulos, GPS...).
+     É uma barra própria e independente da #toolbar2: remover/ocultar um grupo aqui
+     NUNCA afeta a #toolbar2 acima, porque cada uma é seu próprio container flex,
+     sem wrap compartilhado entre as duas. */
+  #toolbar3 {
+    display:flex; align-items:center;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--toolbar-divider-line);
+    padding: 3px 6px;
+    height: 38px;
+    flex-shrink:0;
+    gap: 2px;
+    overflow:hidden;
   }
   #autosave-indicator {
     font-size:11px; color: var(--text-dim);
@@ -274,7 +310,9 @@
   #tb-context-menu .tbcm-sep {
     height:1px; background:#ddd; margin:3px 6px;
   }
-  .toolbar-group.tb-hidden { display:none !important; }
+  .toolbar-group.tb-hidden,
+  .drag-handle.tb-hidden,
+  .toolbar-sep.tb-hidden { display:none !important; }
 
   /* ---------- Body: panels + map ---------- */
   #body { flex:1; display:flex; min-height:0; }
@@ -320,6 +358,20 @@
   }
   .layer-row:hover { background: var(--hover); }
   .layer-row.selected { background: var(--selected); }
+
+  /* ---------- Drag-and-drop de camadas (reordenar a pilha, como em qualquer editor) ---------- */
+  .layer-row { cursor: grab; }
+  .layer-row:active { cursor: grabbing; }
+  .layer-row.lr-dragging {
+    opacity:.4;
+  }
+  /* Linha azul de inserção: mostra exatamente entre quais duas camadas a arrastada vai cair */
+  .layer-drop-line {
+    height:2px; margin:1px 6px;
+    background: var(--accent);
+    border-radius:1px;
+    pointer-events:none;
+  }
   .layer-swatch {
     width:14px; height:14px; border-radius:2px;
     border:1px solid rgba(0,0,0,0.35);
@@ -333,16 +385,27 @@
   }
 
   #map-wrap { flex:1; position:relative; min-width:0; }
-  #map { position:absolute; inset:0; background:#dce9f2; }
+  #map { position:absolute; inset:0; background:#ffffff; }
 
   /* ---------- Cursores das ferramentas de zoom (lupa com + / -) ---------- */
   #map.zoom-in-cursor .leaflet-container,
-  #map.zoom-in-cursor {
+  #map.zoom-in-cursor,
+  #map.zoom-in-cursor .leaflet-interactive {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="27" height="27" viewBox="0 0 27 27"><g fill="none" stroke="%23222" stroke-width="2"><circle cx="11" cy="11" r="7" fill="rgba(255,255,255,0.85)"/><line x1="16.2" y1="16.2" x2="24" y2="24"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></g></svg>') 11 11, zoom-in;
   }
   #map.zoom-out-cursor .leaflet-container,
-  #map.zoom-out-cursor {
+  #map.zoom-out-cursor,
+  #map.zoom-out-cursor .leaflet-interactive {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="27" height="27" viewBox="0 0 27 27"><g fill="none" stroke="%23222" stroke-width="2"><circle cx="11" cy="11" r="7" fill="rgba(255,255,255,0.85)"/><line x1="16.2" y1="16.2" x2="24" y2="24"/><line x1="8" y1="11" x2="14" y2="11"/></g></svg>') 11 11, zoom-out;
+  }
+
+  /* Fora do modo "Selecionar feição" (e fora de zoom): mantém a mãozinha de Pan mesmo
+     passando o mouse sobre uma feição (o Leaflet usa "pointer" por padrão nelas). */
+  #map:not(.select-feature-cursor):not(.zoom-in-cursor):not(.zoom-out-cursor) .leaflet-interactive {
+    cursor: grab;
+  }
+  #map:not(.select-feature-cursor):not(.zoom-in-cursor):not(.zoom-out-cursor) .leaflet-dragging .leaflet-interactive {
+    cursor: grabbing;
   }
 
   #attr-panel {
@@ -462,6 +525,22 @@
   table#attr-table tr.row-selected td { background: var(--selected); }
   table#attr-table tr.row-edited td { background:#fff8dc; }
   table#attr-table tr.row-edited.row-selected td { background:#f5ecb8; }
+  /* Feição selecionada (ferramenta "Selecionar feição" ou clique no ID) — mesmo
+     amarelo usado para destacar a feição no mapa, como no QGIS real. */
+  table#attr-table tr.feat-selected td { background: #ffff99; }
+  table#attr-table tr.feat-selected.row-selected td { background: #ffee66; }
+  table#attr-table td.id-cell .cell-view {
+    cursor: pointer;
+    text-decoration: underline dotted #8a8a8a;
+    text-underline-offset: 2px;
+    min-width: 28px;
+    text-align: center;
+  }
+  table#attr-table th.id-cell { text-align: center; }
+  table#attr-table td.id-cell:hover .cell-view { background: #eef6ff; }
+  #map.select-feature-cursor .leaflet-container,
+  #map.select-feature-cursor,
+  #map.select-feature-cursor .leaflet-interactive { cursor: crosshair; }
   #attr-empty { color: var(--text-dim); padding: 14px; font-size:11.5px; }
   #unsaved-badge {
     display:none;
@@ -469,6 +548,28 @@
     padding:1px 7px; border-radius:9px;
   }
   #unsaved-badge.show { display:inline-block; }
+
+  /* ---------- Arrastar e soltar arquivo .zip para importar shapefile ---------- */
+  #file-drop-overlay {
+    display:none;
+    position:fixed; inset:0;
+    z-index:3000;
+    background: rgba(51,136,204,0.18);
+    align-items:center; justify-content:center;
+    pointer-events:none; /* o drop é ouvido no document; o overlay é só visual */
+  }
+  #file-drop-overlay.show { display:flex; }
+  #file-drop-overlay .file-drop-box {
+    border:3px dashed var(--accent);
+    border-radius:10px;
+    background:#fff;
+    padding:36px 52px;
+    text-align:center;
+    box-shadow:0 6px 24px rgba(0,0,0,0.2);
+  }
+  #file-drop-overlay .file-drop-box .fdb-icon { font-size:34px; margin-bottom:8px; }
+  #file-drop-overlay .file-drop-box .fdb-title { font-size:15px; font-weight:600; color:var(--text); }
+  #file-drop-overlay .file-drop-box .fdb-sub { font-size:12px; color:var(--text-dim); margin-top:4px; }
 
   /* ---------- Modal de ferramentas de análise ---------- */
   #modal-overlay {
@@ -1078,7 +1179,22 @@
         <div class="dd-item"><span class="dd-label">Gerenciar e Instalar Complementos...</span></div>
         <div class="dd-item"><span class="dd-label">Terminal Python</span><span class="dd-shortcut">Ctrl+Alt+P</span></div>
         <div class="dd-sep"></div>
-        <div class="dd-item"><span class="dd-label">Globe Builder</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item dd-submenu">
+          <span class="dd-label">Camadas Base do OSM</span><span class="dd-arrow">▸</span>
+          <div class="menu-dropdown" id="osm-basemap-submenu">
+            <div class="dd-item" data-basemap="osm-standard"><span class="dd-label">OSM Padrão</span></div>
+            <div class="dd-item" data-basemap="osm-hot"><span class="dd-label">OSM Humanitário (HOT)</span></div>
+            <div class="dd-sep"></div>
+            <div class="dd-item" data-basemap="esri-satellite"><span class="dd-label">Satélite (Esri World Imagery)</span></div>
+            <div class="dd-item" data-basemap="esri-satellite-labels"><span class="dd-label">Satélite com Rótulos</span></div>
+            <div class="dd-sep"></div>
+            <div class="dd-item" data-basemap="opentopomap"><span class="dd-label">Topográfico (OpenTopoMap)</span></div>
+            <div class="dd-sep"></div>
+            <div class="dd-item" data-basemap="carto-light"><span class="dd-label">Claro (CartoDB Positron)</span></div>
+            <div class="dd-item" data-basemap="carto-dark"><span class="dd-label">Escuro (CartoDB Dark Matter)</span></div>
+            <div class="dd-item" data-basemap="carto-voyager"><span class="dd-label">Voyager (CartoDB)</span></div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="menu-item">
@@ -1143,34 +1259,50 @@
   </div>
 
   <div id="toolbar">
-    <div class="toolbar-group" data-toolbar="mapnav" style="display:flex;align-items:center;">
+    <div class="toolbar-group" data-toolbar="projectfile" style="display:flex;align-items:center;">
     <div class="drag-handle"></div>
+    <button class="tool-btn not-implemented" id="btn-new-project" title="Novo projeto" style="background-image:url('icons/mActionFileNew.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-open-project" title="Abrir projeto" style="background-image:url('icons/mActionFileOpen.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-save-project" title="Salvar projeto" style="background-image:url('icons/mActionFileSave.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-new-print-layout" title="Nova composição de impressão" style="background-image:url('icons/mActionNewLayout.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-project-props" title="Propriedades do projeto" style="background-image:url('icons/mActionProjectProperties.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-map-styles" title="Estilos de mapa" style="background-image:url('icons/mActionStyleManager.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="mapnav" style="display:flex;align-items:center;">
     <button class="tool-btn" id="btn-pan" title="Pan (navegar pelo mapa)" style="background-image:url('icons/mActionPan.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-pan-to-selected" title="Aplicar pan à seleção" style="background-image:url('icons/mActionPanToSelected.svg')"></button>
     <button class="tool-btn" id="btn-zoom-in" title="Aproximar zoom" style="background-image:url('icons/mActionZoomIn.svg')"></button>
     <button class="tool-btn" id="btn-zoom-out" title="Reduzir zoom" style="background-image:url('icons/mActionZoomOut.svg')"></button>
     <button class="tool-btn" id="btn-zoom-extent" disabled title="Zoom para extensão da camada" style="background-image:url('icons/mActionZoomFullExtent.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-to-layer" title="Zoom para a camada" style="background-image:url('icons/mActionZoomToLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-native" title="Zoom para resolução nativa da camada" style="background-image:url('icons/mActionZoomActual.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Aproximar para resolução nativa (100%)" style="background-image:url('icons/mActionZoomActual.svg')" disabled></button>
     <button class="tool-btn not-implemented" id="btn-zoom-last" title="Zoom anterior" style="background-image:url('icons/mActionZoomLast.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-next" title="Próximo zoom" style="background-image:url('icons/mActionZoomNext.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Aproximar para resolução nativa (100%)" style="background-image:url('icons/mActionZoomActual.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-zoom-next" title="Próximo zoom" style="background-image:url('icons/mActionZoomNext.svg')" disabled></button>
+    <button class="tool-btn not-implemented" id="btn-save-project-as" title="Salvar projeto como" style="background-image:url('icons/mActionFileSaveAs.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="project" style="display:flex;align-items:center;">
     <button class="tool-btn" id="btn-import" title="Importar shapefile (.zip com .shp/.shx/.dbf/.prj)" style="background-image:url('icons/mActionAddOgrLayer.svg')"></button>
-    <input type="file" id="file-input" accept=".zip" />
+    <input type="file" id="file-input" accept=".zip" multiple />
     <button class="tool-btn" id="btn-export" disabled title="Exportar como shapefile (.zip)" style="background-image:url('icons/mActionFileSaveAs.svg')"></button>
     <div class="toolbar-sep"></div>
     <button class="tool-btn" id="btn-undo" disabled title="Desfazer (Ctrl+Z)" style="background-image:url('icons/mActionUndo.svg')"></button>
     <button class="tool-btn" id="btn-redo" disabled title="Refazer (Ctrl+Y)" style="background-image:url('icons/mActionRedo.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-history" title="Histórico do mapa" style="background-image:url('icons/mActionHistory.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-refresh" title="Atualizar mapa" style="background-image:url('icons/mActionRefresh.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="selection" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-select-rect" title="Selecionar feições por retângulo" style="background-image:url('icons/mActionSelectRectangle.svg')"></button>
+    <button class="tool-btn" id="btn-select-rect" title="Selecionar feição" style="background-image:url('icons/mActionSelectRectangle.svg')"></button>
     <button class="tool-dropdown" disabled title="Outros modos de seleção">▾</button>
     <button class="tool-btn not-implemented" id="btn-copy-features" title="Copiar feições" style="background-image:url('icons/mActionEditCopy.svg')"></button>
     <button class="tool-dropdown" disabled title="Colar feições">▾</button>
-    <button class="tool-btn not-implemented" id="btn-deselect" title="Limpar seleção" style="background-image:url('icons/mActionDeselectAll.svg')"></button>
+    <button class="tool-btn" id="btn-deselect" title="Desselecionar feição" style="background-image:url('icons/mActionDeselectAll.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     <button class="tool-btn not-implemented" id="btn-bookmark" title="Marcadores espaciais" style="background-image:url('icons/mActionNewBookmark.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
@@ -1182,14 +1314,45 @@
     <button class="tool-btn not-implemented" id="btn-select-expr" title="Selecionar feições por expressão" style="background-image:url('icons/mIconExpressionSelect.svg')"></button>
     <button class="tool-btn" id="btn-open-attr" disabled title="Abrir tabela de atributos" style="background-image:url('icons/mActionOpenTable.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-stats" title="Resumo estatístico" style="background-image:url('icons/mAlgorithmBasicStatistics.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-stats" title="Resumo estatístico" style="background-image:url('icons/mActionCalculateField.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-options" title="Opções" style="background-image:url('icons/mActionOptions.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-field-calc" title="Calculadora de campo" style="background-image:url('icons/mActionCalculateField.svg')"></button>
     <div class="toolbar-sep"></div>
     <button class="tool-btn" id="btn-measure" disabled title="Medir distância" style="background-image:url('icons/mActionMeasure.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     <button class="tool-btn not-implemented" id="btn-maptips" title="Mostrar dicas de mapa" style="background-image:url('icons/mActionMapTips.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-zoom-to-sel" title="Zoom para seleção" style="background-image:url('icons/mActionZoomToSelected.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-  </div>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="annotations" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-text-annotation" title="Anotação de texto" style="background-image:url('icons/mActionTextAnnotation.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-locator" title="Localizar (barra de localização)" style="background-image:url('icons/search.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="snapping" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-enable-snapping" title="Ativar aderência (snapping)" style="background-image:url('icons/mIconSnapping.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-snapping-options" title="Opções de aderência" style="background-image:url('icons/mActionOptions.svg')"></button>
+    <div class="snap-tolerance-box" style="display:flex;align-items:center;gap:3px;">
+      <input type="number" id="input-snap-tolerance" value="12" title="Tolerância de aderência" style="width:44px;height:22px;" disabled />
+      <select id="select-snap-unit" title="Unidade da tolerância" style="height:22px;" disabled>
+        <option>px</option>
+        <option>mm</option>
+        <option>metros</option>
+      </select>
+    </div>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn not-implemented" id="btn-snap-rotate-north" title="Rotacionar para o norte" style="background-image:url('icons/north_arrow.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-avoid-intersections" title="Evitar interseções em novas feições" style="background-image:url('icons/mActionAvoidIntersectionsCurrentLayer.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-disable-snap" title="Desativar aderência" style="background-image:url('icons/mIconSnapping.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-advanced-snap" title="Aderência avançada por camada" style="background-image:url('icons/mIconSnappingAdvanced.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-tracing" title="Rastreamento de geometria (tracing)" style="background-image:url('icons/mActionTracing.svg')"></button>
+    </div>
   </div>
 
   <div id="toolbar2">
@@ -1210,26 +1373,44 @@
     <div class="toolbar-group" data-toolbar="digitizing" style="display:flex;align-items:center;">
     <button class="tool-btn" id="btn-toggle-edit" disabled title="Alternar modo de edição de atributos" style="background-image:url('icons/mActionToggleEditing.svg')"></button>
     <button class="tool-btn" id="btn-save-edits-tb" disabled title="Salvar edições na camada" style="background-image:url('icons/mActionSaveEdits.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-save-edits-as" title="Salvar edições como" style="background-image:url('icons/mActionSaveEdits.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-all-edits" title="Edições atuais (todas as camadas)" style="background-image:url('icons/mActionAllEdits.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     <div class="toolbar-sep"></div>
     <button class="tool-btn" id="btn-draw-point" disabled title="Adicionar feição de ponto" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
     <button class="tool-btn" id="btn-draw-line" disabled title="Adicionar feição de linha" style="background-image:url('icons/mActionAddBasicRectangle.svg')"></button>
     <button class="tool-btn" id="btn-draw-polygon" disabled title="Adicionar feição de polígono" style="background-image:url('icons/mActionRegularPolygonCenterPoint.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
     <button class="tool-btn" id="btn-add-feature-tb" disabled title="Adicionar registro/feição na camada selecionada" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
-    <button class="tool-btn" id="btn-toggle-geom-edit" disabled title="Alternar edição de geometria (mover vértices)" style="background-image:url('icons/mActionVertexTool.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-delete-selected" title="Excluir feições selecionadas" style="background-image:url('icons/mActionDeleteSelectedFeatures.svg')"></button>
-    </div>
+    <button class="tool-btn not-implemented" id="btn-cut-features" title="Recortar feições" style="background-image:url('icons/mActionEditCut.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-copy-features-tb" title="Copiar feições" style="background-image:url('icons/mActionEditCopy.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-paste-features-tb" title="Colar feições" style="background-image:url('icons/mActionEditPaste.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-undo-edit" title="Desfazer edição" style="background-image:url('icons/mActionUndo.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-redo-edit" title="Refazer edição" style="background-image:url('icons/mActionRedo.svg')"></button>
     <div class="toolbar-sep"></div>
-    <div class="drag-handle"></div>
-    <div class="toolbar-group" data-toolbar="advdigitizing" style="display:flex;align-items:center;">
-    <button class="tool-label-btn has-icon" id="btn-buffer" disabled title="Criar zona de buffer ao redor da feição selecionada" style="background-image:url('icons/mActionReshape.svg')"></button>
-    <button class="tool-label-btn has-icon" id="btn-intersect" disabled title="Interseção entre duas camadas" style="background-image:url('icons/mActionMergeFeatures.svg')"></button>
-    <button class="tool-label-btn has-icon" id="btn-union" disabled title="Unir todas as feições de duas camadas em uma só" style="background-image:url('icons/mActionMergeFeatureAttributes.svg')"></button>
-    <button class="tool-label-btn has-icon" id="btn-clip" disabled title="Recortar uma camada usando outra como máscara" style="background-image:url('icons/mActionSplitFeatures.svg')"></button>
-    <button class="tool-label-btn has-icon" id="btn-split" disabled title="Dividir uma feição em duas, desenhando uma linha de corte" style="background-image:url('icons/mActionSplitParts.svg')"></button>
-    </div>
+    <button class="tool-btn" id="btn-toggle-geom-edit" disabled title="Alternar edição de geometria (mover vértices)" style="background-image:url('icons/mActionVertexTool.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-add-vertex-node" title="Adicionar vértice" style="background-image:url('icons/mActionVertexTool.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-auto-label" title="Rótulo automático" style="background-image:url('icons/mActionLabeling.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-text-format" title="Formatação de texto (T)" style="background-image:url('icons/mActionText.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-abc-numbering" title="Numeração automática de rótulo" style="background-image:url('icons/labeltext.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-text-annotation-tb" title="Anotação de texto" style="background-image:url('icons/mActionTextAnnotation.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
     <div class="toolbar-sep"></div>
+    <button class="tool-btn not-implemented" id="btn-shape-rect-tb" title="Retângulo" style="background-image:url('icons/mActionAddBasicRectangle.svg')" disabled></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-shape-circle-tb" title="Círculo" style="background-image:url('icons/mActionAddBasicCircle.svg')" disabled></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-shape-ellipse-tb" title="Elipse" style="background-image:url('icons/mActionEllipseCenterPoint.svg')" disabled></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-shape-regular-tb" title="Polígono regular" style="background-image:url('icons/mActionRegularPolygonCenterPoint.svg')" disabled></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn not-implemented" id="btn-db-manager-tb" title="Gerenciador de banco de dados" style="background-image:url('icons/dbmanager.svg')"></button>
+    </div>
+  </div>
+
+  <div id="toolbar3">
     <div class="toolbar-group" data-toolbar="managelayers2" style="display:flex;align-items:center;">
     <div class="drag-handle"></div>
     <button class="tool-btn not-implemented" id="btn-add-layer" title="Adicionar camada" style="background-image:url('icons/mActionAddLayer.svg')"></button>
@@ -1254,11 +1435,33 @@
     <button class="tool-btn not-implemented" id="btn-diagrams" title="Diagramas" style="background-image:url('icons/diagram.svg')"></button>
     <div class="toolbar-sep"></div>
     <button class="tool-btn not-implemented" id="btn-pin-labels" title="Fixar rótulos" style="background-image:url('icons/mActionPinLabels.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-pin-diagrams" title="Fixar diagramas" style="background-image:url('icons/mActionPinLabels.svg')"></button>
+    <div class="toolbar-sep"></div>
     <button class="tool-btn not-implemented" id="btn-show-hide-labels" title="Mostrar/ocultar rótulos e diagramas selecionados" style="background-image:url('icons/mActionShowHideLabels.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-show-hidden-labels" title="Mostrar rótulos ocultos" style="background-image:url('icons/mActionShowUnplacedLabel.svg')"></button>
     <div class="toolbar-sep"></div>
     <button class="tool-btn not-implemented" id="btn-move-label" title="Mover rótulo, diagrama ou callout" style="background-image:url('icons/mActionMoveLabel.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-rotate-label" title="Girar rótulo" style="background-image:url('icons/mActionRotateLabel.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-change-label" title="Alterar propriedades do rótulo" style="background-image:url('icons/mActionChangeLabelProperties.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-easy-labeling" title="EasyLabeling" style="background-image:url('icons/mIconLabelingRules.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="hcmgis" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-hcmgis-tools" title="HCMGIS - Ferramentas" style="background-image:url('icons/mActionOptions.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-hcmgis-basemap" title="HCMGIS - Mapa base rápido" style="background-image:url('icons/mActionAddXyzLayer.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-hcmgis-googlemap" title="HCMGIS - Google Maps" style="background-image:url('icons/mIconXyz.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-hcmgis-qms" title="Quick Map Services (QMS)" style="background-image:url('icons/mActionAddWmsLayer.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="meshediting" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-mesh-edit" title="Editar malha" style="background-image:url('icons/mActionMeshDigitizing.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-mesh-select" title="Selecionar por polígono" style="background-image:url('icons/mActionMeshSelectPolygon.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-mesh-force-breakline" title="Forçar por linha de ruptura/área" style="background-image:url('icons/mActionMeshEditForceByVectorLines.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-mesh-transform" title="Transformar malha" style="background-image:url('icons/mActionMeshTransformByExpression.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
@@ -1293,11 +1496,35 @@
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="georeferencer" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-georeferencer-panel" title="Georreferenciador" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-georef-transform" title="Transformar" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-georef-add-point" title="Adicionar ponto" style="background-image:url('icons/mActionCapturePoint.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-georef-delete-point" title="Excluir ponto" style="background-image:url('icons/mIconClearText.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-georef-move-point" title="Mover ponto" style="background-image:url('icons/mActionMoveVertex.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-georef-pan" title="Pan no georreferenciador" style="background-image:url('icons/mActionPan.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-georef-identify" title="Identificar feição" style="background-image:url('icons/mActionIdentify.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-georef-settings" title="Configurações do georreferenciador" style="background-image:url('icons/mActionOptions.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
+    <div class="toolbar-group" data-toolbar="rastercontrast" style="display:flex;align-items:center;">
+    <button class="tool-btn not-implemented" id="btn-raster-stretch-full" title="Esticar usando o mínimo/máximo do dataset completo" style="background-image:url('icons/mActionFullHistogramStretch.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-raster-stretch-extent" title="Esticar usando o mínimo/máximo da extensão atual" style="background-image:url('icons/mActionLocalHistogramStretch.svg')"></button>
+    <button class="tool-dropdown" disabled>▾</button>
+    <button class="tool-btn not-implemented" id="btn-raster-brightness-inc" title="Aumentar brilho" style="background-image:url('icons/mActionIncreaseBrightness.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-raster-brightness-dec" title="Diminuir brilho" style="background-image:url('icons/mActionDecreaseBrightness.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-raster-contrast-inc" title="Aumentar contraste" style="background-image:url('icons/mActionIncreaseContrast.svg')"></button>
+    <button class="tool-btn not-implemented" id="btn-raster-contrast-dec" title="Diminuir contraste" style="background-image:url('icons/mActionDecreaseContrast.svg')"></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="dbpython" style="display:flex;align-items:center;">
     <button class="tool-btn not-implemented" id="btn-db-toolbar" title="Barra de ferramentas de banco de dados" style="background-image:url('icons/dbmanager.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-python-console" title="Console Python" style="background-image:url('icons/mIconPythonFile.svg')"></button>
     <div class="toolbar-sep"></div>
-    <button class="tool-btn not-implemented" id="btn-georeferencer" title="Georreferenciador" style="background-image:url('icons/mGeorefRun.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-coord-capture" title="Capturar coordenadas" style="background-image:url('icons/mActionIdentifyByMouseOver.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-north-arrow" title="Seta norte" style="background-image:url('icons/mActionAddArrow.svg')"></button>
     </div>
@@ -1307,7 +1534,6 @@
     <button class="tool-btn not-implemented" id="btn-gps-track" title="Ativar rastreamento GPS" style="background-image:url('icons/mActionAddGpsLayer.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-gps-panel" title="Painel GPS" style="background-image:url('icons/mIconGps.svg')"></button>
     </div>
-    <div class="toolbar-sep"></div>
   </div>
 
   <div id="body">
@@ -1336,27 +1562,27 @@
 
   <!-- Menu de contexto: botão direito em uma camada no painel Camadas (apenas visual, sem função atribuída) -->
   <div id="layer-context-menu" class="menu-dropdown">
-    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionZoomToLayer.svg')"></span><span class="dd-label">Aproximar para camada(s)</span></div>
-    <div class="dd-item disabled"><span class="dd-icon" style="background-image:url('icons/mActionZoomToSelected.svg')"></span><span class="dd-label">Aproximar à Seleção</span></div>
-    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionInOverview.svg')"></span><span class="dd-label">Mostrar na vista geral</span></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Mostrar contagem dos elementos</span></div>
-    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionLabeling.svg')"></span><span class="dd-label">Mostrar etiquetas</span></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Copiar camada</span></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Renomear Camada</span></div>
+    <div class="dd-item" id="ctx-zoom-layer"><span class="dd-icon" style="background-image:url('icons/mActionZoomToLayer.svg')"></span><span class="dd-label">Aproximar para camada(s)</span></div>
+    <div class="dd-item" id="ctx-zoom-selection"><span class="dd-icon" style="background-image:url('icons/mActionZoomToSelected.svg')"></span><span class="dd-label">Aproximar à Seleção</span></div>
+    <div class="dd-item disabled"><span class="dd-icon" style="background-image:url('icons/mActionInOverview.svg')"></span><span class="dd-label">Mostrar na vista geral</span></div>
+    <div class="dd-item disabled"><span class="dd-label" style="padding-left:0">Mostrar contagem dos elementos</span></div>
+    <div class="dd-item disabled"><span class="dd-icon" style="background-image:url('icons/mActionLabeling.svg')"></span><span class="dd-label">Mostrar etiquetas</span></div>
+    <div class="dd-item" id="ctx-copy-layer"><span class="dd-label" style="padding-left:0">Copiar camada</span></div>
+    <div class="dd-item" id="ctx-rename-layer"><span class="dd-label" style="padding-left:0">Renomear Camada</span></div>
     <div class="dd-sep"></div>
-    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionDuplicateLayer.svg')"></span><span class="dd-label">Duplicar Camada</span></div>
-    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionRemoveLayer.svg')"></span><span class="dd-label">Remover Camada...</span></div>
+    <div class="dd-item" id="ctx-duplicate-layer"><span class="dd-icon" style="background-image:url('icons/mActionDuplicateLayer.svg')"></span><span class="dd-label">Duplicar Camada</span></div>
+    <div class="dd-item" id="ctx-remove-layer"><span class="dd-icon" style="background-image:url('icons/mActionRemoveLayer.svg')"></span><span class="dd-label">Remover Camada...</span></div>
     <div class="dd-sep"></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Mover ao Topo</span></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Mover para inferior</span></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Checar Todos seus Parentescos</span></div>
+    <div class="dd-item" id="ctx-move-top"><span class="dd-label" style="padding-left:0">Mover ao Topo</span></div>
+    <div class="dd-item" id="ctx-move-bottom"><span class="dd-label" style="padding-left:0">Mover para inferior</span></div>
+    <div class="dd-item disabled"><span class="dd-label" style="padding-left:0">Checar Todos seus Parentescos</span></div>
     <div class="dd-sep"></div>
-    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionOpenTable.svg')"></span><span class="dd-label">Abrir tabela de atributos</span></div>
-    <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionToggleEditing.svg')"></span><span class="dd-label">Alternar Edição</span></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Filtrar...</span></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Modificar a origem da fonte de dados</span></div>
+    <div class="dd-item" id="ctx-open-attr"><span class="dd-icon" style="background-image:url('icons/mActionOpenTable.svg')"></span><span class="dd-label">Abrir tabela de atributos</span></div>
+    <div class="dd-item disabled"><span class="dd-icon" style="background-image:url('icons/mActionToggleEditing.svg')"></span><span class="dd-label">Alternar Edição</span></div>
+    <div class="dd-item disabled"><span class="dd-label" style="padding-left:0">Filtrar...</span></div>
+    <div class="dd-item disabled"><span class="dd-label" style="padding-left:0">Modificar a origem da fonte de dados</span></div>
     <div class="dd-sep"></div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Visibilidade baseada na escala</span></div>
+    <div class="dd-item disabled"><span class="dd-label" style="padding-left:0">Visibilidade baseada na escala</span></div>
     <div class="dd-item dd-submenu">
       <span class="dd-label" style="padding-left:0">SRC da camada</span><span class="dd-arrow">▸</span>
       <div class="menu-dropdown"></div>
@@ -1364,15 +1590,45 @@
     <div class="dd-sep"></div>
     <div class="dd-item dd-submenu">
       <span class="dd-label" style="padding-left:0">Exportar</span><span class="dd-arrow">▸</span>
-      <div class="menu-dropdown"></div>
+      <div class="menu-dropdown">
+        <div class="dd-item" id="ctx-export-elements"><span class="dd-label">Guardar elementos como...</span></div>
+        <div class="dd-item" id="ctx-export-selected"><span class="dd-label">Guardar elementos selecionados como...</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Salvar como camadas Arquivo de definições...</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Guardar como Ficheiro de Estilo de Camada QGIS...</span></div>
+      </div>
     </div>
     <div class="dd-sep"></div>
     <div class="dd-item dd-submenu">
       <span class="dd-label" style="padding-left:0">Estilos</span><span class="dd-arrow">▸</span>
-      <div class="menu-dropdown"></div>
+      <div class="menu-dropdown" id="ctx-styles-submenu">
+        <div class="dd-item disabled"><span class="dd-label">Copiar Estilo</span><span class="dd-arrow">▸</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Adicionar...</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Renomear estilo atual...</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item disabled"><span class="dd-label">● padrão</span></div>
+        <div class="dd-sep"></div>
+        <div style="padding:8px 10px;">
+          <div id="ctx-style-wheel" title="Clique para escolher a cor da camada" style="width:100%; aspect-ratio:1; border-radius:50%; cursor:pointer; background:conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #80ff00, #00ff00, #00ff80, #00ffff, #0080ff, #0000ff, #8000ff, #ff00ff, #ff0080, #ff0000);"></div>
+          <input type="color" id="ctx-style-color-input" style="position:absolute; width:0; height:0; opacity:0; pointer-events:none;">
+        </div>
+        <div style="padding:2px 10px 6px; color:var(--text-dim); font-size:11px;">Cores recentes</div>
+        <div id="ctx-style-recent-colors" style="display:flex; flex-wrap:wrap; gap:4px; padding:0 10px 8px;"></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item disabled"><span class="dd-label">Editar Símbolo...</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Copiar Símbolo</span></div>
+        <div class="dd-item disabled"><span class="dd-label">Colar Símbolo</span></div>
+      </div>
     </div>
-    <div class="dd-item"><span class="dd-label" style="padding-left:0">Adicionar notas...</span></div>
+    <div class="dd-item disabled"><span class="dd-label" style="padding-left:0">Adicionar notas...</span></div>
     <div class="dd-item"><span class="dd-icon" style="background-image:url('icons/mActionOptions.svg')"></span><span class="dd-label">Propriedades...</span></div>
+  </div>
+
+  <div id="file-drop-overlay">
+    <div class="file-drop-box">
+      <div class="fdb-icon">📂</div>
+      <div class="fdb-title">Solte o(s) arquivo(s) .zip aqui</div>
+      <div class="fdb-sub">Cada .zip com .shp/.shx/.dbf vira uma nova camada</div>
+    </div>
   </div>
 
   <div id="modal-overlay">
@@ -1682,6 +1938,22 @@
 </div>
 
 <script>
+  // ---------------- Helper defensivo: evita que botões ausentes no HTML (ex.: btn-buffer,
+  // btn-intersect, btn-union, btn-clip, btn-split) quebrem toda a execução do script,
+  // o que impedia inclusive a caixa de diálogo "Propriedades..." de abrir. ----------------
+  function safeEl(id) {
+    const el = document.getElementById(id);
+    if (el) return el;
+    return {
+      addEventListener() {},
+      removeEventListener() {},
+      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+      set disabled(v) {},
+      get disabled() { return true; },
+      style: {},
+    };
+  }
+
   // ---------------- Menubar: abrir/fechar dropdowns (apenas visual, sem ações atribuídas) ----------------
   (function initMenubar() {
     const menubar = document.getElementById('menubar');
@@ -1717,7 +1989,7 @@
     });
   })();
 
-  // ---------------- Menu de contexto de Camada (botão direito) — apenas visual, sem ações atribuídas ----------------
+  // ---------------- Menu de contexto de Camada (botão direito) ----------------
   (function initLayerContextMenu() {
     const ctxMenu = document.getElementById('layer-context-menu');
     if (!ctxMenu) return;
@@ -1737,20 +2009,232 @@
     });
 
     document.addEventListener('click', (e) => {
+      if (e.target.id === 'ctx-style-color-input') return; // clique no seletor nativo de cor não fecha o menu
       if (!e.target.closest('#layer-context-menu')) ctxMenu.classList.remove('show');
     });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') ctxMenu.classList.remove('show');
     });
+
+    function closeCtxMenu() { ctxMenu.classList.remove('show'); }
+    function getActiveLayer() { return state.layers.find(l => l.id === state.selectedLayerId); }
+
+    // ---- Aproximar para camada(s): zoom na extensão total da camada ----
+    document.getElementById('ctx-zoom-layer').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      try {
+        state.map.fitBounds(layer.leafletLayer.getBounds(), { padding: [20, 20] });
+      } catch (e) { toast('Não foi possível calcular a extensão da camada.'); }
+    });
+
+    // ---- Aproximar à Seleção: zoom apenas nas feições selecionadas da camada ----
+    document.getElementById('ctx-zoom-selection').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      if (layer.isBasemap) { toast('Camadas base não possuem feições selecionáveis.'); return; }
+      if (layer.selectedFeatures.size === 0) { toast('Nenhuma feição selecionada nesta camada.'); return; }
+      const selectedGeojson = {
+        type: 'FeatureCollection',
+        features: Array.from(layer.selectedFeatures).map(idx => layer.geojson.features[idx]).filter(Boolean),
+      };
+      try {
+        const tmp = L.geoJSON(selectedGeojson);
+        state.map.fitBounds(tmp.getBounds(), { padding: [20, 20] });
+      } catch (e) { toast('Não foi possível calcular a extensão da seleção.'); }
+    });
+
+    // ---- Copiar camada: copia a camada (geojson + estilo) para uma "área de transferência" interna ----
+    document.getElementById('ctx-copy-layer').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      if (layer.isBasemap) { toast('Camadas base não podem ser copiadas.'); return; }
+      state.layerClipboard = {
+        name: layer.name,
+        color: layer.color,
+        geojson: JSON.parse(JSON.stringify(layer.geojson)),
+      };
+      toast(`Camada "${layer.name}" copiada.`);
+    });
+
+    // ---- Renomear Camada: edição inline direto na lista, com o nome já selecionado ----
+    document.getElementById('ctx-rename-layer').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      startInlineRename(layer.id);
+    });
+
+    // ---- Duplicar Camada: cria uma cópia independente logo acima da original ----
+    document.getElementById('ctx-duplicate-layer').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      if (layer.isBasemap) { addBasemapLayer(layer.basemapKind); return; }
+      const geojsonCopy = JSON.parse(JSON.stringify(layer.geojson));
+      addLayer(`${layer.name} copy`, geojsonCopy, { color: layer.color, skipFit: true });
+      toast(`Camada "${layer.name}" duplicada.`);
+    });
+
+    // ---- Remover Camada...: exclui a camada ativa, com confirmação ----
+    document.getElementById('ctx-remove-layer').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      openModal('Remover Camada', `
+        <p>Tem certeza que deseja remover a camada "<strong>${layer.name}</strong>"? Esta ação não pode ser desfeita.</p>
+      `, () => {
+        try { state.map.removeLayer(layer.leafletLayer); } catch (e) {}
+        state.layers = state.layers.filter(l => l.id !== layer.id);
+        if (state.selectedLayerId === layer.id) {
+          state.selectedLayerId = state.layers.length ? state.layers[state.layers.length - 1].id : null;
+        }
+        renderLayerList();
+        renderAttributeTable();
+        const hasLayers = state.layers.length > 0;
+        document.getElementById('btn-export').disabled = !hasLayers;
+        enableIfPresent('btn-open-attr', !hasLayers);
+        safeEl('btn-intersect').disabled = state.layers.length < 2;
+        safeEl('btn-union').disabled = state.layers.length < 2;
+        safeEl('btn-clip').disabled = state.layers.length < 2;
+        scheduleAutosave();
+        toast(`Camada "${layer.name}" removida.`);
+      });
+    });
+
+    // ---- Mover ao Topo / Mover para inferior: reordena a pilha de camadas ----
+    document.getElementById('ctx-move-top').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      moveLayerInStack(layer.id, null, false); // null = fim do array = topo da pilha
+    });
+    document.getElementById('ctx-move-bottom').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      const bottomLayer = state.layers.find(l => l.id !== layer.id);
+      if (!bottomLayer) { toast('Não há outra camada abaixo.'); return; }
+      moveLayerInStack(layer.id, state.layers[0].id, false); // antes da camada que hoje está no fundo
+    });
+
+    // ---- Abrir tabela de atributos: reaproveita o botão da toolbar ----
+    document.getElementById('ctx-open-attr').addEventListener('click', () => {
+      closeCtxMenu();
+      const layer = getActiveLayer();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      if (layer.isBasemap) { toast('Camadas base não possuem tabela de atributos.'); return; }
+      document.getElementById('btn-open-attr').click();
+    });
+
+    // ---- Exportar ▸ Guardar elementos como... / Guardar elementos selecionados como... ----
+    function exportLayerAsShapefile(layer, geojson, suffix) {
+      try {
+        const fileBase = suffix ? `${layer.name}_${suffix}` : layer.name;
+        const options = { folder: fileBase, filename: fileBase, outputType: 'blob', compression: 'STORE' };
+        const blob = shpwrite.zip(geojson, options);
+        Promise.resolve(blob).then((zipBlob) => {
+          const url = URL.createObjectURL(zipBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${fileBase}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          toast(`Camada "${layer.name}" exportada como shapefile (.zip).`);
+        });
+      } catch (err) {
+        console.error(err);
+        toast('Erro ao exportar: ' + err.message, 4000);
+      }
+    }
+    document.getElementById('ctx-export-elements').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      if (layer.isBasemap) { toast('Camadas base não podem ser exportadas como shapefile.'); return; }
+      exportLayerAsShapefile(layer, layer.geojson, '');
+    });
+    document.getElementById('ctx-export-selected').addEventListener('click', () => {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      if (layer.isBasemap) { toast('Camadas base não possuem feições selecionáveis.'); return; }
+      if (layer.selectedFeatures.size === 0) { toast('Nenhuma feição selecionada nesta camada.'); return; }
+      const selectedGeojson = {
+        type: 'FeatureCollection',
+        features: Array.from(layer.selectedFeatures).map(idx => layer.geojson.features[idx]).filter(Boolean),
+      };
+      exportLayerAsShapefile(layer, selectedGeojson, 'selecionados');
+    });
+
+    // ---- Estilos ▸ roda de cores: aplica uma nova cor de preenchimento à camada ----
+    const RECENT_COLORS_KEY = 'qgis-web-prototipo:cores-recentes';
+    function loadRecentColors() {
+      try { return JSON.parse(localStorage.getItem(RECENT_COLORS_KEY)) || []; } catch (e) { return []; }
+    }
+    function saveRecentColors(list) {
+      try { localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(list.slice(0, 16))); } catch (e) {}
+    }
+    function renderRecentColors() {
+      const wrap = document.getElementById('ctx-style-recent-colors');
+      if (!wrap) return;
+      const colors = loadRecentColors();
+      wrap.innerHTML = colors.map(c =>
+        `<span class="ctx-recent-swatch" data-color="${c}" style="display:inline-block;width:18px;height:18px;background:${c};border:1px solid var(--panel-border);cursor:pointer;"></span>`
+      ).join('');
+      wrap.querySelectorAll('.ctx-recent-swatch').forEach(sw => {
+        sw.addEventListener('click', () => applyColorToActiveLayer(sw.dataset.color));
+      });
+    }
+    function applyColorToActiveLayer(hexColor) {
+      const layer = getActiveLayer();
+      closeCtxMenu();
+      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+      if (layer.isBasemap) { toast('Camadas base não possuem cor de preenchimento.'); return; }
+      layer.color = hexColor;
+      layer.leafletLayer.eachLayer((flayer) => {
+        const feature = flayer.feature;
+        const idx = layer.geojson.features.indexOf(feature);
+        const isSelected = !!layer.selectedFeatures.has(idx);
+        const st = featureStyle(hexColor, isSelected);
+        if (flayer.setStyle) flayer.setStyle(st);
+      });
+      renderLayerList();
+      const recent = [hexColor, ...loadRecentColors().filter(c => c !== hexColor)];
+      saveRecentColors(recent);
+      scheduleAutosave();
+      toast(`Cor da camada "${layer.name}" atualizada.`);
+    }
+    renderRecentColors();
+    const styleWheel = document.getElementById('ctx-style-wheel');
+    const styleColorInput = document.getElementById('ctx-style-color-input');
+    if (styleWheel && styleColorInput) {
+      styleWheel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const layer = getActiveLayer();
+        if (layer) styleColorInput.value = layer.color;
+        styleColorInput.click();
+      });
+      styleColorInput.addEventListener('input', () => {
+        applyColorToActiveLayer(styleColorInput.value);
+        renderRecentColors();
+      });
+    }
   })();
 
   // ---------------- Estado ----------------
   const state = {
     map: null,
-    layers: [],       // { id, name, geojson, leafletLayer, color, visible, editedRows:Set, dirty:bool }
+    layers: [],       // { id, name, geojson, leafletLayer, color, visible, editedRows:Set, dirty:bool, selectedFeatures:Set }
     selectedLayerId: null,
     nextId: 1,
     editMode: false,
+    selectFeatureMode: false, // true enquanto a ferramenta "Selecionar feição" está ativa
   };
 
   // ---------------- Cor de camada: reproduz o QGIS (QgsLimitedRandomColorRamp) ----------------
@@ -1812,11 +2296,9 @@
   });
 
   // ---------------- Mapa ----------------
-  state.map = L.map('map', { zoomControl: true }).setView([-9.7, -36.0], 7); // Alagoas como default
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 19,
-  }).addTo(state.map);
+  // Sem camada de base automática: o mapa começa em branco (tela vazia), como no QGIS,
+  // até o usuário adicionar uma camada base pelo menu Complementos > Camadas Base do OSM.
+  state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-9.7, -36.0], 7); // Alagoas como default
 
   state.map.on('mousemove', (e) => {
     document.getElementById('coord-display').textContent =
@@ -1845,6 +2327,7 @@
     stopActiveDraw();
     stopMeasure();
     stopZoomMode();
+    stopSelectFeatureMode();
     if (wasActive) return; // clicar de novo no botão ativo só desliga o modo
 
     activeZoomMode = mode;
@@ -1863,12 +2346,56 @@
   });
 
   // Voltar para o modo Pan (padrão) desliga qualquer modo de zoom ativo.
-  document.getElementById('btn-pan').addEventListener('click', stopZoomMode);
+  document.getElementById('btn-pan').addEventListener('click', () => { stopZoomMode(); stopSelectFeatureMode(); });
+
+  // ---------------- Ferramenta "Selecionar feição" ----------------
+  // Enquanto ativa, clicar em uma feição no mapa alterna sua seleção (fica amarela).
+  // Clicar de novo no botão (ou trocar de ferramenta) desliga o modo — a seleção em si permanece.
+  const btnSelectFeature = document.getElementById('btn-select-rect');
+
+  function stopSelectFeatureMode() {
+    state.selectFeatureMode = false;
+    btnSelectFeature.classList.remove('active');
+    mapEl.classList.remove('select-feature-cursor');
+  }
+
+  function startSelectFeatureMode() {
+    const wasActive = btnSelectFeature.classList.contains('active');
+    stopActiveDraw();
+    stopMeasure();
+    stopZoomMode();
+    stopSelectFeatureMode();
+    if (wasActive) return; // clicar de novo no botão ativo só desliga o modo
+
+    state.selectFeatureMode = true;
+    btnSelectFeature.classList.add('active');
+    mapEl.classList.add('select-feature-cursor');
+  }
+
+  btnSelectFeature.addEventListener('click', startSelectFeatureMode);
+
+  // ---------------- Ferramenta "Desselecionar feição" ----------------
+  // Limpa a seleção de TODAS as camadas (não só da camada ativa no painel), para nunca
+  // deixar feições "presas" selecionadas em outra camada que não a selecionada no momento.
+  document.getElementById('btn-deselect').addEventListener('click', () => {
+    const hadSelection = state.layers.some(l => l.selectedFeatures.size > 0);
+    clearFeatureSelection(null);
+    if (!hadSelection) toast('Não há feições selecionadas.');
+  });
 
   // Abrir tabela de atributos: expande o painel de atributos (mesmo painel do botão ▲/▼).
+  // Se já houver uma feição selecionada na camada ativa, rola até ela.
   document.getElementById('btn-open-attr').addEventListener('click', () => {
     document.getElementById('attr-panel').classList.remove('collapsed');
     document.getElementById('attr-toggle').textContent = '▼ recolher';
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (layer && layer.selectedFeatures.size > 0) {
+      const firstIdx = Math.min(...layer.selectedFeatures);
+      setTimeout(() => {
+        const row = document.querySelector(`#attr-table tr[data-idx="${firstIdx}"]`);
+        if (row) row.scrollIntoView({ block: 'nearest' });
+      }, 0);
+    }
   });
 
   // Gerenciador de fontes de dados: mesmo fluxo do botão de importar shapefile.
@@ -1909,10 +2436,27 @@
         color: l.color,
         visible: l.visible,
         geojson: l.geojson,
+        isBasemap: l.isBasemap || false,
+        basemapKind: l.basemapKind || null,
       })),
       selectedLayerId: state.selectedLayerId,
       nextId: state.nextId,
     };
+  }
+
+  // Recria uma camada salva (autosave ou histórico), respeitando se é uma camada base
+  // (raster/tile) ou uma camada vetorial comum.
+  function restoreLayerFromSaved(l, opts = {}) {
+    if (l.isBasemap && l.basemapKind && BASEMAP_DEFS[l.basemapKind]) {
+      addBasemapLayer(l.basemapKind);
+      const restored = state.layers[state.layers.length - 1];
+      if (restored) {
+        if (l.name) restored.name = l.name;
+        if (opts.visible === false) toggleVisibility(restored.id, false);
+      }
+      return;
+    }
+    addLayer(l.name, l.geojson, { color: l.color, visible: l.visible, skipAutosave: true, skipFit: true, ...opts });
   }
 
   function scheduleAutosave() {
@@ -1944,6 +2488,7 @@
     return JSON.parse(JSON.stringify({
       layers: state.layers.map(l => ({
         name: l.name, color: l.color, visible: l.visible, geojson: l.geojson,
+        isBasemap: l.isBasemap || false, basemapKind: l.basemapKind || null,
       })),
       selectedLayerId: state.selectedLayerId,
       nextId: state.nextId,
@@ -1981,7 +2526,7 @@
       state.selectedLayerId = null;
 
       snap.layers.forEach(l => {
-        addLayer(l.name, l.geojson, { color: l.color, visible: l.visible, skipAutosave: true, skipFit: true });
+        restoreLayerFromSaved(l);
       });
       state.nextId = snap.nextId;
       state.selectedLayerId = snap.selectedLayerId;
@@ -1999,8 +2544,8 @@
       document.getElementById('btn-draw-polygon').disabled = !hasLayers;
       document.getElementById('btn-draw-line').disabled = !hasLayers;
       document.getElementById('btn-measure').disabled = !hasLayers;
-      document.getElementById('btn-buffer').disabled = !hasLayers;
-      document.getElementById('btn-split').disabled = !hasLayers;
+      safeEl('btn-buffer').disabled = !hasLayers;
+      safeEl('btn-split').disabled = !hasLayers;
     } finally {
       restoringHistory = false;
     }
@@ -2063,7 +2608,7 @@
     if (!data.layers || data.layers.length === 0) return;
 
     data.layers.forEach(l => {
-      addLayer(l.name, l.geojson, { color: l.color, visible: l.visible, skipAutosave: true, skipFit: true });
+      restoreLayerFromSaved(l);
     });
     if (typeof data.nextId === 'number') state.nextId = Math.max(state.nextId, data.nextId);
     if (data.selectedLayerId != null && state.layers.some(l => l.id === data.selectedLayerId)) {
@@ -2094,14 +2639,14 @@
     document.getElementById('file-input').click();
   });
 
-  document.getElementById('file-input').addEventListener('change', async (ev) => {
-    const file = ev.target.files[0];
-    if (!file) return;
+  // Lê um único arquivo .zip de shapefile e adiciona como camada nova.
+  // Retorna uma Promise para permitir importar vários arquivos em sequência,
+  // relatando erro por arquivo sem interromper os demais.
+  async function importShapefileZip(file) {
     if (!file.name.toLowerCase().endsWith('.zip')) {
-      toast('Envie um .zip contendo .shp, .shx, .dbf (e .prj, se houver).');
+      toast(`"${file.name}" ignorado: envie um .zip contendo .shp, .shx, .dbf (e .prj, se houver).`);
       return;
     }
-    toast('Lendo shapefile...');
     try {
       const buffer = await file.arrayBuffer();
       const geojson = await shp(buffer);
@@ -2110,9 +2655,181 @@
       toast(`Camada "${file.name}" importada com ${gj.features.length} feições.`);
     } catch (err) {
       console.error(err);
-      toast('Erro ao ler o shapefile: ' + err.message, 4000);
+      toast(`Erro ao ler "${file.name}": ` + err.message, 4000);
     }
+  }
+
+  // Importa uma lista (FileList ou array) de .zip em sequência, um de cada vez,
+  // para não sobrecarregar o parser do shpjs com leituras simultâneas.
+  async function importShapefileZips(fileList) {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+    if (files.length > 1) toast(`Lendo ${files.length} arquivos...`);
+    else toast('Lendo shapefile...');
+    for (const file of files) {
+      await importShapefileZip(file);
+    }
+  }
+
+  document.getElementById('file-input').addEventListener('change', async (ev) => {
+    await importShapefileZips(ev.target.files);
     ev.target.value = '';
+  });
+
+  // ---------------- Arrastar e soltar .zip em qualquer lugar da tela ----------------
+  // Mostra um overlay "solte aqui" enquanto o usuário arrasta arquivos por cima da
+  // janela, e importa cada .zip solto como uma nova camada (mesmo fluxo do botão
+  // "Importar SHP"). dragCounter evita que o overlay pisque ao passar por cima de
+  // elementos filhos (cada um dispara seu próprio dragenter/dragleave).
+  (function initFileDragAndDrop() {
+    const overlay = document.getElementById('file-drop-overlay');
+    if (!overlay) return;
+    let dragCounter = 0;
+
+    function hasFiles(e) {
+      return e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    }
+
+    document.addEventListener('dragenter', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragCounter++;
+      overlay.classList.add('show');
+    });
+    document.addEventListener('dragover', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); // necessário para permitir o drop
+    });
+    document.addEventListener('dragleave', (e) => {
+      if (!hasFiles(e)) return;
+      dragCounter = Math.max(0, dragCounter - 1);
+      if (dragCounter === 0) overlay.classList.remove('show');
+    });
+    document.addEventListener('drop', async (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragCounter = 0;
+      overlay.classList.remove('show');
+      await importShapefileZips(e.dataTransfer.files);
+    });
+  })();
+
+
+  // ---------------- Seleção de feições (estilo QGIS: feição selecionada fica amarela) ----------------
+  // Cor padrão de seleção do QGIS (Configurações > Opções > Tela e Legenda > Cor de seleção),
+  // com contorno preto para destacar bem a feição selecionada sobre o mapa.
+  const QGIS_SELECTION_FILL = '#ffff00';
+  const QGIS_SELECTION_STROKE = '#000000';
+
+  function featureStyle(color, isSelected) {
+    return isSelected
+      ? { color: QGIS_SELECTION_STROKE, weight: QGIS_STROKE_WEIGHT, fillOpacity: QGIS_FILL_OPACITY, fillColor: QGIS_SELECTION_FILL }
+      : { color: QGIS_STROKE_COLOR, weight: QGIS_STROKE_WEIGHT, fillOpacity: QGIS_FILL_OPACITY, fillColor: color };
+  }
+
+  // Habilita um botão pelo id, sem lançar erro se o elemento não existir no DOM
+  // (alguns ids de botões da toolbar são referenciados condicionalmente em pontos
+  // diferentes do app; este helper evita que uma ausência quebre o restante do fluxo).
+  function enableIfPresent(id, disabled = false) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  }
+
+  // ---------------- Camadas base (raster/tile) do OSM e variações ----------------
+  // Diferente das camadas vetoriais (addLayer, acima), uma camada base é só um tile layer
+  // do Leaflet: não tem feições, não tem tabela de atributos, não tem simbologia editável.
+  // Ainda assim ela entra em state.layers para aparecer no painel de Camadas, poder ser
+  // reordenada, ocultada e removida como qualquer outra camada.
+  const BASEMAP_DEFS = {
+    'osm-standard': {
+      label: 'OSM Padrão',
+      crs: 'EPSG:3857 (WGS 84 / Pseudo-Mercator)',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' },
+    },
+    'osm-hot': {
+      label: 'OSM Humanitário (HOT)',
+      crs: 'EPSG:3857 (WGS 84 / Pseudo-Mercator)',
+      url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+      options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors, Tiles style by HOT' },
+    },
+    'esri-satellite': {
+      label: 'Satélite (Esri World Imagery)',
+      crs: 'EPSG:3857 (WGS 84 / Pseudo-Mercator)',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      options: { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics' },
+    },
+    'esri-satellite-labels': {
+      label: 'Satélite com Rótulos',
+      crs: 'EPSG:3857 (WGS 84 / Pseudo-Mercator)',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      options: { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics' },
+      overlayUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    },
+    'opentopomap': {
+      label: 'Topográfico (OpenTopoMap)',
+      crs: 'EPSG:3857 (WGS 84 / Pseudo-Mercator)',
+      url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      options: { maxZoom: 17, attribution: '&copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap' },
+    },
+    'carto-light': {
+      label: 'Claro (CartoDB Positron)',
+      crs: 'EPSG:3857 (WGS 84 / Pseudo-Mercator)',
+      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' },
+    },
+    'carto-dark': {
+      label: 'Escuro (CartoDB Dark Matter)',
+      crs: 'EPSG:3857 (WGS 84 / Pseudo-Mercator)',
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' },
+    },
+    'carto-voyager': {
+      label: 'Voyager (CartoDB)',
+      crs: 'EPSG:3857 (WGS 84 / Pseudo-Mercator)',
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      options: { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' },
+    },
+  };
+
+  function addBasemapLayer(kind) {
+    const def = BASEMAP_DEFS[kind];
+    if (!def) return;
+    const id = state.nextId++;
+
+    const tileLayer = L.tileLayer(def.url, def.options);
+    const group = L.layerGroup([tileLayer]);
+    if (def.overlayUrl) {
+      group.addLayer(L.tileLayer(def.overlayUrl, def.options));
+    }
+    group.addTo(state.map);
+
+    const layerObj = {
+      id,
+      name: def.label,
+      geojson: { type: 'FeatureCollection', features: [] }, // sem feições: mantém compatibilidade com código existente
+      leafletLayer: group,
+      color: '#999999',
+      visible: true,
+      editedRows: new Set(),
+      dirty: false,
+      selectedFeatures: new Set(),
+      isBasemap: true,
+      basemapKind: kind,
+      crs: def.crs,
+    };
+    state.layers.push(layerObj);
+    renderLayerList();
+    selectLayer(id);
+    scheduleAutosave();
+    toast(`Camada base "${def.label}" adicionada.`);
+  }
+
+  // ---- Menu Complementos ▸ Camadas Base do OSM: clique em uma variação adiciona a camada ----
+  document.querySelectorAll('#osm-basemap-submenu .dd-item[data-basemap]').forEach((item) => {
+    item.addEventListener('click', () => {
+      addBasemapLayer(item.dataset.basemap);
+    });
   });
 
   function addLayer(name, geojson, restoreOptions = {}) {
@@ -2120,15 +2837,32 @@
     const id = state.nextId++;
 
     const leafletLayer = L.geoJSON(geojson, {
-      style: () => ({ color: QGIS_STROKE_COLOR, weight: QGIS_STROKE_WEIGHT, fillOpacity: QGIS_FILL_OPACITY, fillColor: color }),
-      pointToLayer: (feature, latlng) =>
-        L.circleMarker(latlng, { radius: 5, color: QGIS_STROKE_COLOR, weight: QGIS_STROKE_WEIGHT, fillOpacity: QGIS_FILL_OPACITY, fillColor: color }),
+      style: (feature) => {
+        const layerObj = state.layers.find(l => l.id === id);
+        const idx = layerObj ? layerObj.geojson.features.indexOf(feature) : -1;
+        const isSelected = !!(layerObj && layerObj.selectedFeatures.has(idx));
+        return featureStyle(color, isSelected);
+      },
+      pointToLayer: (feature, latlng) => {
+        const layerObj = state.layers.find(l => l.id === id);
+        const idx = layerObj ? layerObj.geojson.features.indexOf(feature) : -1;
+        const isSelected = !!(layerObj && layerObj.selectedFeatures.has(idx));
+        const st = featureStyle(color, isSelected);
+        return L.circleMarker(latlng, { radius: 5, color: st.color, weight: st.weight, fillOpacity: st.fillOpacity, fillColor: st.fillColor });
+      },
       onEachFeature: (feature, layer) => {
-        layer.on('click', () => selectFeatureRow(id, feature));
+        layer.on('click', (e) => {
+          if (!state.selectFeatureMode) return; // fora do modo de seleção, clique na feição não faz nada
+          const layerObj = state.layers.find(l => l.id === id);
+          const idx = layerObj.geojson.features.indexOf(feature);
+          const oe = e.originalEvent;
+          const additive = !!(oe && (oe.shiftKey || oe.ctrlKey || oe.metaKey));
+          selectFeatureByClick(id, idx, { additive });
+        });
       },
     }).addTo(state.map);
 
-    const layerObj = { id, name, geojson, leafletLayer, color, visible: true, editedRows: new Set(), dirty: false };
+    const layerObj = { id, name, geojson, leafletLayer, color, visible: true, editedRows: new Set(), dirty: false, selectedFeatures: new Set() };
     state.layers.push(layerObj);
     renderLayerList();
     selectLayer(id);
@@ -2152,11 +2886,12 @@
     document.getElementById('btn-draw-polygon').disabled = false;
     document.getElementById('btn-draw-line').disabled = false;
     document.getElementById('btn-measure').disabled = false;
-    document.getElementById('btn-buffer').disabled = false;
-    document.getElementById('btn-intersect').disabled = state.layers.length < 2;
-    document.getElementById('btn-union').disabled = state.layers.length < 2;
-    document.getElementById('btn-clip').disabled = state.layers.length < 2;
-    document.getElementById('btn-split').disabled = false;
+    enableIfPresent('btn-open-attr');
+    safeEl('btn-buffer').disabled = false;
+    safeEl('btn-intersect').disabled = state.layers.length < 2;
+    safeEl('btn-union').disabled = state.layers.length < 2;
+    safeEl('btn-clip').disabled = state.layers.length < 2;
+    safeEl('btn-split').disabled = false;
 
     if (!restoreOptions.skipAutosave) scheduleAutosave();
   }
@@ -2172,11 +2907,13 @@
     [...state.layers].reverse().forEach(l => {
       const row = document.createElement('div');
       row.className = 'layer-row' + (l.id === state.selectedLayerId ? ' selected' : '');
+      row.setAttribute('draggable', 'true');
+      row.dataset.layerId = l.id;
       row.innerHTML = `
         <input type="checkbox" ${l.visible ? 'checked' : ''} data-id="${l.id}" class="vis-toggle">
         <span class="layer-swatch" style="background:${l.color}"></span>
         <span class="layer-name" title="${l.name}">${l.name}</span>
-        <span class="layer-count">${l.geojson.features.length}</span>
+        <span class="layer-count">${l.isBasemap ? 'Base' : l.geojson.features.length}</span>
       `;
       row.addEventListener('click', (e) => {
         if (e.target.classList.contains('vis-toggle')) return;
@@ -2186,6 +2923,177 @@
         toggleVisibility(l.id, e.target.checked);
       });
       listEl.appendChild(row);
+    });
+    setupLayerDragAndDrop();
+  }
+
+  // ---------- Renomeia a camada diretamente na lista (edição inline) ----------
+  // Troca o <span class="layer-name"> pela linha correspondente por um <input>
+  // já focado com o texto todo selecionado, para o usuário digitar por cima na hora,
+  // sem precisar abrir uma janela separada. Confirma com Enter ou perda de foco (blur);
+  // cancela com Esc, restaurando o nome original.
+  function startInlineRename(layerId) {
+    const layer = state.layers.find(l => l.id === layerId);
+    if (!layer) return;
+    const row = document.querySelector(`.layer-row[data-layer-id="${layerId}"]`);
+    if (!row) return;
+    const nameSpan = row.querySelector('.layer-name');
+    if (!nameSpan || row.querySelector('.layer-name-input')) return; // já em edição
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = layer.name;
+    input.className = 'layer-name-input';
+    input.style.cssText = 'flex:1; min-width:0; font:inherit; padding:1px 3px; border:1px solid var(--accent); box-sizing:border-box;';
+    nameSpan.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let finished = false;
+    function commit() {
+      if (finished) return;
+      finished = true;
+      const newName = input.value.trim();
+      if (newName && newName !== layer.name) {
+        layer.name = newName;
+        scheduleAutosave();
+        toast(`Camada renomeada para "${newName}".`);
+      }
+      renderLayerList();
+    }
+    function cancel() {
+      if (finished) return;
+      finished = true;
+      renderLayerList(); // simplesmente re-renderiza com o nome original, sem alterar layer.name
+    }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      e.stopPropagation(); // não deixa o Escape também fechar outros menus/painéis
+    });
+    input.addEventListener('blur', commit);
+    input.addEventListener('click', (e) => e.stopPropagation());
+  }
+
+  // ---------- Reordena a pilha de camadas (state.layers) e replica no mapa ----------
+  // Igual a qualquer editor com painel de camadas (Photoshop, Figma, QGIS): quem está mais
+  // acima na lista fica por CIMA visualmente. state.layers já segue essa convenção com o
+  // fim do array = topo da pilha (é por isso que renderLayerList inverte para desenhar).
+  // targetId/insertAfter descrevem a posição de soltura EM TERMOS DO ARRAY LÓGICO
+  // (não da tela): insertAfter=true coloca a camada arrastada logo depois de targetId
+  // no array; targetId=null manda para o topo da pilha (fim do array).
+  function moveLayerInStack(draggedId, targetId, insertAfter) {
+    const ids = state.layers.map(l => l.id);
+    const fromIdx = ids.indexOf(draggedId);
+    if (fromIdx === -1) return;
+    ids.splice(fromIdx, 1);
+
+    let insertAt;
+    if (targetId == null) {
+      insertAt = ids.length; // fim do array = topo da pilha
+    } else {
+      const targetIdx = ids.indexOf(targetId);
+      insertAt = targetIdx === -1 ? ids.length : (insertAfter ? targetIdx + 1 : targetIdx);
+    }
+    ids.splice(insertAt, 0, draggedId);
+
+    // Se a ordem final é idêntica à atual, não faz nada (soltou no próprio lugar).
+    const unchanged = ids.every((id, i) => id === state.layers[i].id);
+    if (unchanged) return;
+
+    const byId = new Map(state.layers.map(l => [l.id, l]));
+    state.layers = ids.map(id => byId.get(id));
+
+    reapplyLayerStackOrder();
+    renderLayerList();
+    scheduleAutosave();
+    const moved = byId.get(draggedId);
+    toast(`Camada "${moved.name}" reposicionada.`);
+  }
+
+  function reapplyLayerStackOrder() {
+    // Remove e readiciona cada camada visível na ordem de state.layers (índice 0 = mais
+    // no fundo). Reinserir no Leaflet na ordem certa é o jeito padrão de mudar o z-order,
+    // já que geometrias vetoriais não têm um z-index individual como elementos DOM.
+    state.layers.forEach(l => {
+      if (l.visible) {
+        try { state.map.removeLayer(l.leafletLayer); } catch (e) {}
+      }
+    });
+    state.layers.forEach(l => {
+      if (l.visible) l.leafletLayer.addTo(state.map);
+    });
+  }
+
+  function setupLayerDragAndDrop() {
+    const listEl = document.getElementById('layer-list');
+    let draggedId = null;
+    let dropLine = null;
+
+    function makeDropLine() {
+      const el = document.createElement('div');
+      el.className = 'layer-drop-line';
+      return el;
+    }
+    function removeDropLine() {
+      if (dropLine && dropLine.parentNode) dropLine.parentNode.removeChild(dropLine);
+      dropLine = null;
+    }
+
+    listEl.querySelectorAll('.layer-row').forEach(row => {
+      row.addEventListener('dragstart', (e) => {
+        draggedId = Number(row.dataset.layerId);
+        row.classList.add('lr-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(draggedId)); } catch (err) {}
+        try { e.dataTransfer.setDragImage(new Image(), 0, 0); } catch (err) {}
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('lr-dragging');
+        removeDropLine();
+        draggedId = null;
+      });
+    });
+
+    listEl.addEventListener('dragover', (e) => {
+      if (draggedId == null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      if (!dropLine) dropLine = makeDropLine();
+
+      const targetRow = e.target.closest('.layer-row');
+      if (targetRow && Number(targetRow.dataset.layerId) !== draggedId) {
+        const rect = targetRow.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height / 2;
+        listEl.insertBefore(dropLine, before ? targetRow : targetRow.nextSibling);
+      } else if (!targetRow) {
+        // área vazia abaixo da última linha → indica que vai para o topo da pilha visual
+        listEl.appendChild(dropLine);
+      }
+    });
+
+    listEl.addEventListener('dragleave', (e) => {
+      if (e.target === listEl) removeDropLine();
+    });
+
+    listEl.addEventListener('drop', (e) => {
+      if (draggedId == null) return;
+      e.preventDefault();
+
+      const targetRow = e.target.closest('.layer-row');
+      if (targetRow && Number(targetRow.dataset.layerId) !== draggedId) {
+        const rect = targetRow.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height / 2;
+        // A lista é renderizada invertida (topo da tela = fim do array state.layers,
+        // que é o topo da pilha visual no mapa). Por isso soltar "antes" (acima) da
+        // linha-alvo na tela significa inserir DEPOIS dela no array lógico.
+        moveLayerInStack(draggedId, Number(targetRow.dataset.layerId), /* insertAfter */ before);
+      } else if (!targetRow) {
+        moveLayerInStack(draggedId, null, true);
+      }
+      removeDropLine();
+      draggedId = null;
     });
   }
 
@@ -2199,24 +3107,142 @@
   }
 
   function selectLayer(id) {
+    if (state.selectedLayerId === id) return; // já selecionada: evita recriar a linha no DOM
+    // (isso quebraria o dblclique de "abrir Propriedades", já que o 2º clique do gesto
+    // cairia em um elemento novo, recriado pelo re-render do 1º clique)
     state.selectedLayerId = id;
     renderLayerList();
     renderAttributeTable();
   }
 
-  function selectFeatureRow(layerId, feature) {
-    selectLayer(layerId);
-    setTimeout(() => {
-      const idx = state.layers.find(l => l.id === layerId).geojson.features.indexOf(feature);
-      const row = document.querySelector(`#attr-table tr[data-idx="${idx}"]`);
-      if (row) {
-        document.querySelectorAll('#attr-table tr').forEach(r => r.classList.remove('row-selected'));
-        row.classList.add('row-selected');
-        row.scrollIntoView({ block: 'nearest' });
+  // ---------------- Seleção de feição (fica amarela, como no QGIS) ----------------
+  // Independente de como a feição é selecionada — pela ferramenta "Selecionar feição",
+  // clicando no ID na tabela de atributos, ou desfeita por "Desselecionar feição" —
+  // este é o ponto único que atualiza: (1) a cor da feição no mapa e (2) o destaque
+  // da linha correspondente na tabela de atributos.
+  //
+  // Regras de combinação de teclas (iguais no mapa e na tabela, exceto o range):
+  //   - clique simples ......... desseleciona tudo e seleciona só a feição clicada
+  //   - Shift/Ctrl + clique ..... adiciona a feição à seleção existente (toggle individual)
+  //   - Shift + clique na TABELA  seleciona o intervalo entre a última linha clicada e esta
+
+  // Guarda a última feição clicada na tabela de atributos, usada como âncora do Shift (range).
+  state.lastClickedFeature = null; // { layerId, idx }
+
+  // Repinta apenas a sub-layer Leaflet de uma feição específica (evita reconstruir a camada toda).
+  function restyleFeatureOnMap(layer, idx) {
+    const feature = layer.geojson.features[idx];
+    if (!feature) return;
+    const isSelected = layer.selectedFeatures.has(idx);
+    const style = featureStyle(layer.color, isSelected);
+    layer.leafletLayer.eachLayer(sub => {
+      if (sub.feature === feature) {
+        if (typeof sub.setStyle === 'function') sub.setStyle(style);
       }
+    });
+  }
+
+  // Atualiza o destaque (classe .feat-selected) da linha da tabela de atributos, se estiver visível.
+  function updateFeatureRowHighlight(layerId, idx) {
+    if (state.selectedLayerId !== layerId) return;
+    const row = document.querySelector(`#attr-table tr[data-idx="${idx}"]`);
+    if (!row) return;
+    const layer = state.layers.find(l => l.id === layerId);
+    row.classList.toggle('feat-selected', layer.selectedFeatures.has(idx));
+  }
+
+  function setFeatureSelected(layerId, idx, selected) {
+    const layer = state.layers.find(l => l.id === layerId);
+    if (!layer || !layer.geojson.features[idx]) return;
+    if (selected) layer.selectedFeatures.add(idx);
+    else layer.selectedFeatures.delete(idx);
+    restyleFeatureOnMap(layer, idx);
+    updateFeatureRowHighlight(layerId, idx);
+  }
+
+  // Garante que a camada esteja ativa (troca a camada selecionada/re-renderiza a tabela se preciso).
+  function ensureActiveLayer(layerId) {
+    if (state.selectedLayerId !== layerId) {
+      state.selectedLayerId = layerId;
+      renderLayerList();
+      renderAttributeTable();
+    }
+  }
+
+  // Abre/rola a tabela de atributos até a linha da feição — usado sempre que uma seleção muda,
+  // para que a tabela já apareça focada na feição selecionada.
+  function focusAttributeRow(layerId, idx) {
+    ensureActiveLayer(layerId);
+    setTimeout(() => {
       document.getElementById('attr-panel').classList.remove('collapsed');
       document.getElementById('attr-toggle').textContent = '▼ recolher';
+      const row = document.querySelector(`#attr-table tr[data-idx="${idx}"]`);
+      if (row) row.scrollIntoView({ block: 'nearest' });
     }, 0);
+  }
+
+  // Limpa a seleção de uma camada (ou de todas, se layerId for omitido) — usado por "Desselecionar feição".
+  function clearFeatureSelection(layerId) {
+    const targets = layerId != null ? state.layers.filter(l => l.id === layerId) : state.layers;
+    targets.forEach(layer => {
+      const idxs = Array.from(layer.selectedFeatures);
+      layer.selectedFeatures.clear();
+      idxs.forEach(idx => {
+        restyleFeatureOnMap(layer, idx);
+        updateFeatureRowHighlight(layer.id, idx);
+      });
+    });
+  }
+
+  // ---- Clique de feição no MAPA (ferramenta "Selecionar feição") ----
+  // Clique simples: desseleciona tudo e seleciona só esta.
+  // Shift ou Ctrl/Cmd + clique: soma à seleção existente; clicar numa feição já
+  // selecionada com Shift/Ctrl a desseleciona (mantendo as demais intactas).
+  function selectFeatureByClick(layerId, idx, { additive = false } = {}) {
+    if (!additive) {
+      clearFeatureSelection(null);
+      setFeatureSelected(layerId, idx, true);
+    } else {
+      const layer = state.layers.find(l => l.id === layerId);
+      if (!layer) return;
+      setFeatureSelected(layerId, idx, !layer.selectedFeatures.has(idx));
+    }
+    state.lastClickedFeature = { layerId, idx };
+    focusAttributeRow(layerId, idx);
+  }
+
+  // ---- Clique na célula do ID, na TABELA DE ATRIBUTOS ----
+  // Sem tecla: desseleciona tudo, seleciona só esta.
+  // Ctrl/Cmd + clique: alterna esta feição individualmente, mantendo as demais.
+  // Shift + clique: seleciona o intervalo entre a última linha clicada (âncora) e esta.
+  function selectFeatureFromTable(layerId, idx, { shiftKey = false, ctrlKey = false } = {}) {
+    const layer = state.layers.find(l => l.id === layerId);
+    if (!layer) return;
+
+    if (shiftKey && state.lastClickedFeature && state.lastClickedFeature.layerId === layerId) {
+      const from = state.lastClickedFeature.idx;
+      const to = idx;
+      const lo = Math.min(from, to);
+      const hi = Math.max(from, to);
+      clearFeatureSelection(null);
+      for (let i = lo; i <= hi; i++) setFeatureSelected(layerId, i, true);
+      // a âncora permanece a mesma (não avança), para permitir ajustar o range repetidamente
+    } else if (ctrlKey) {
+      setFeatureSelected(layerId, idx, !layer.selectedFeatures.has(idx));
+      state.lastClickedFeature = { layerId, idx };
+    } else {
+      clearFeatureSelection(null);
+      setFeatureSelected(layerId, idx, true);
+      state.lastClickedFeature = { layerId, idx };
+    }
+    focusAttributeRow(layerId, idx);
+  }
+
+  // Identifica colunas que representam um identificador de feição (id, fid, objectid, etc.),
+  // para permitir selecionar/desselecionar com um clique simples na célula, sem entrar em edição.
+  function isIdField(fieldName) {
+    const k = String(fieldName).trim().toLowerCase();
+    return k === 'id' || k === 'fid' || k === 'objectid' || k.endsWith('_id') || k.startsWith('id_');
   }
 
   function allPropKeys(layer) {
@@ -2263,6 +3289,17 @@
       return;
     }
 
+    if (layer.isBasemap) {
+      wrap.innerHTML = '<div id="attr-empty">Esta é uma camada base (raster) e não possui tabela de atributos.</div>';
+      document.getElementById('scale-display').textContent = 'Feições: —';
+      addFieldBtn.disabled = true;
+      addFeatureBtn.disabled = true;
+      saveBtn.disabled = true;
+      document.getElementById('btn-add-feature-tb').disabled = true;
+      document.getElementById('btn-save-edits-tb').disabled = true;
+      return;
+    }
+
     addFieldBtn.disabled = !state.editMode;
     addFeatureBtn.disabled = !state.editMode;
     saveBtn.disabled = !layer.dirty;
@@ -2278,6 +3315,9 @@
 
     const propKeys = allPropKeys(layer);
     let html = '<table id="attr-table"><thead><tr>';
+    // Coluna de ID própria da tabela (não é um campo de atributo real): sempre presente,
+    // baseada no índice da feição — é nela que o clique seleciona/desseleciona, como no QGIS.
+    html += '<th class="id-cell"><span class="th-inner"><span>id</span></span></th>';
     propKeys.forEach(k => {
       html += `<th><span class="th-inner"><span>${k}</span>`;
       if (state.editMode) html += `<button class="del-field-btn" data-field="${k}" title="Remover campo">✕</button>`;
@@ -2287,7 +3327,9 @@
     html += '</tr></thead><tbody>';
     features.forEach((f, idx) => {
       const editedClass = layer.editedRows.has(idx) ? ' row-edited' : '';
-      html += `<tr data-idx="${idx}" class="${editedClass}">`;
+      const selectedClass = layer.selectedFeatures.has(idx) ? ' feat-selected' : '';
+      html += `<tr data-idx="${idx}" class="${editedClass}${selectedClass}">`;
+      html += `<td class="id-cell"><div class="cell-view">${idx}</div></td>`;
       propKeys.forEach(k => {
         const val = f.properties[k] ?? '';
         if (state.editMode) {
@@ -2305,12 +3347,28 @@
     wrap.innerHTML = html;
     document.getElementById('scale-display').textContent = `Feições: ${features.length}`;
 
-    // seleção de linha
+    // seleção de linha (destaque de "linha ativa" ao clicar em qualquer lugar dela)
     wrap.querySelectorAll('tr[data-idx]').forEach(row => {
       row.addEventListener('click', (e) => {
         if (e.target.closest('.cell-edit') || e.target.closest('.del-row-btn')) return;
+        if (e.target.closest('.id-cell')) return; // célula do ID tem seu próprio comportamento (abaixo)
         wrap.querySelectorAll('tr').forEach(r => r.classList.remove('row-selected'));
         row.classList.add('row-selected');
+      });
+    });
+
+    // clicar na célula do ID seleciona a feição (fica amarela no mapa e a linha fica em
+    // destaque). Sem tecla: seleciona só esta. Ctrl: soma/alterna esta. Shift: seleciona
+    // o intervalo entre a última linha clicada e esta.
+    wrap.querySelectorAll('td.id-cell').forEach(td => {
+      td.addEventListener('mousedown', (e) => {
+        if (e.shiftKey) e.preventDefault(); // evita seleção de texto nativa do navegador ao usar Shift
+      });
+      td.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const row = td.closest('tr');
+        const idx = Number(row.dataset.idx);
+        selectFeatureFromTable(layer.id, idx, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
       });
     });
 
@@ -2343,6 +3401,10 @@
         layer.leafletLayer.clearLayers();
         layer.leafletLayer.addData(layer.geojson);
         layer.editedRows = new Set(); // índices mudaram, evita marcação incorreta
+        layer.selectedFeatures = new Set(); // idem para a seleção de feições
+        if (state.lastClickedFeature && state.lastClickedFeature.layerId === layer.id) {
+          state.lastClickedFeature = null; // âncora do Shift também ficou inválida
+        }
         markDirty(layer);
         renderAttributeTable();
       });
@@ -2544,7 +3606,7 @@
 
   function saveToolbarOrder() {
     const order = {};
-    ['toolbar', 'toolbar2'].forEach(barId => {
+    ['toolbar', 'toolbar2', 'toolbar3'].forEach(barId => {
       const bar = document.getElementById(barId);
       if (!bar) return;
       order[barId] = Array.from(bar.querySelectorAll(':scope > .toolbar-group'))
@@ -2580,7 +3642,7 @@
   function applyToolbarOrder() {
     const order = loadToolbarOrder();
     if (!order) return;
-    ['toolbar', 'toolbar2'].forEach(barId => {
+    ['toolbar', 'toolbar2', 'toolbar3'].forEach(barId => {
       const bar = document.getElementById(barId);
       if (!bar || !order[barId]) return;
       order[barId].forEach(groupId => {
@@ -2592,8 +3654,32 @@
   }
 
   function setupToolbarDragAndDrop() {
-    const bars = [document.getElementById('toolbar'), document.getElementById('toolbar2')].filter(Boolean);
+    const bars = [document.getElementById('toolbar'), document.getElementById('toolbar2'), document.getElementById('toolbar3')].filter(Boolean);
     let draggedGroup = null;
+    let draggedHandle = null;
+    let draggedSep = null;
+    let draggedWidth = 0; // largura do conjunto (separador + alça + grupo), para o placeholder
+    let placeholder = null;
+
+    function getUnitNodes(groupEl) {
+      const prevHandle = groupEl.previousElementSibling && groupEl.previousElementSibling.classList.contains('drag-handle')
+        ? groupEl.previousElementSibling : null;
+      const prevSep = prevHandle && prevHandle.previousElementSibling && prevHandle.previousElementSibling.classList.contains('toolbar-sep')
+        ? prevHandle.previousElementSibling : null;
+      return { prevSep, prevHandle };
+    }
+
+    function makePlaceholder(width) {
+      const el = document.createElement('div');
+      el.className = 'tg-drop-placeholder';
+      el.style.width = width + 'px';
+      return el;
+    }
+
+    function removePlaceholder() {
+      if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+      placeholder = null;
+    }
 
     bars.forEach(bar => {
       // alças que são irmãs, logo antes de um grupo (caso comum)
@@ -2610,36 +3696,79 @@
 
         handle.addEventListener('dragstart', (e) => {
           draggedGroup = groupEl;
+          const { prevSep, prevHandle } = getUnitNodes(groupEl);
+          draggedSep = prevSep;
+          // A própria alça que disparou o drag pode ser a "prevHandle" (grupos comuns)
+          // ou estar dentro do grupo (primeiro grupo de cada barra) — nos dois casos
+          // ela deve ficar translúcida junto com o grupo.
+          draggedHandle = prevHandle || (groupEl.contains(handle) ? null : handle);
+
+          // Mede a largura total do conjunto ANTES de aplicar qualquer estilo,
+          // para o placeholder reservar exatamente esse espaço.
+          const rectGroup = groupEl.getBoundingClientRect();
+          const rectSep = draggedSep ? draggedSep.getBoundingClientRect() : null;
+          const rectHandle = draggedHandle ? draggedHandle.getBoundingClientRect() : null;
+          draggedWidth = rectGroup.width + (rectSep ? rectSep.width : 0) + (rectHandle ? rectHandle.width : 0);
+
           groupEl.classList.add('tg-dragging');
+          if (draggedSep) draggedSep.classList.add('tg-dragging');
+          if (draggedHandle) draggedHandle.classList.add('tg-dragging');
+          // A alça interna do primeiro grupo (mapnav) faz parte do próprio groupEl,
+          // então já herda o opacity — não precisa de classe extra.
+
           e.dataTransfer.effectAllowed = 'move';
           try { e.dataTransfer.setData('text/plain', getToolbarGroupId(groupEl)); } catch (err) {}
+          // Evita o "fantasma" padrão do navegador arrastando um retrato feio da alça;
+          // como o grupo de origem já fica translúcido, isso é suficiente como feedback.
+          try { e.dataTransfer.setDragImage(new Image(), 0, 0); } catch (err) {}
         });
 
         handle.addEventListener('dragend', () => {
           if (draggedGroup) draggedGroup.classList.remove('tg-dragging');
-          document.querySelectorAll('.toolbar-group.tg-drop-before, .toolbar-group.tg-drop-after')
-            .forEach(el => el.classList.remove('tg-drop-before', 'tg-drop-after'));
+          if (draggedSep) draggedSep.classList.remove('tg-dragging');
+          if (draggedHandle) draggedHandle.classList.remove('tg-dragging');
           bars.forEach(b => b.classList.remove('tg-drop-target-empty'));
+          removePlaceholder();
           draggedGroup = null;
+          draggedHandle = null;
+          draggedSep = null;
         });
       });
 
-      // Permite soltar sobre qualquer grupo (para reordenar) ou na área vazia da barra
+      // Permite soltar sobre qualquer grupo (para reordenar) ou na área vazia da barra.
+      // Em vez de só marcar uma borda no grupo alvo, um placeholder azul do tamanho exato
+      // do grupo arrastado é inserido no local onde ele vai cair — como no QGIS real.
       bar.addEventListener('dragover', (e) => {
         if (!draggedGroup) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
 
-        const targetGroup = e.target.closest('.toolbar-group');
-        document.querySelectorAll('.toolbar-group.tg-drop-before, .toolbar-group.tg-drop-after')
-          .forEach(el => el.classList.remove('tg-drop-before', 'tg-drop-after'));
+        if (!placeholder) placeholder = makePlaceholder(draggedWidth);
 
+        const targetGroup = e.target.closest('.toolbar-group');
         if (targetGroup && targetGroup !== draggedGroup) {
           const rect = targetGroup.getBoundingClientRect();
           const before = (e.clientX - rect.left) < rect.width / 2;
-          targetGroup.classList.add(before ? 'tg-drop-before' : 'tg-drop-after');
+          // Insere o placeholder antes do "conjunto" do grupo alvo (separador+alça+grupo)
+          // ou depois dele, para refletir exatamente onde a solda vai acontecer.
+          if (before) {
+            const { prevSep, prevHandle } = getUnitNodes(targetGroup);
+            const anchor = prevSep || prevHandle || targetGroup;
+            if (placeholder.nextSibling !== anchor || placeholder.parentNode !== bar) {
+              bar.insertBefore(placeholder, anchor);
+            }
+          } else {
+            const nextEl = targetGroup.nextElementSibling;
+            if (placeholder.previousSibling !== targetGroup || placeholder.parentNode !== bar) {
+              bar.insertBefore(placeholder, nextEl || null);
+            }
+          }
           bar.classList.remove('tg-drop-target-empty');
         } else if (!targetGroup) {
+          // Área vazia da barra: placeholder vai para o final dela
+          if (placeholder.parentNode !== bar || bar.lastElementChild !== placeholder) {
+            bar.appendChild(placeholder);
+          }
           bar.classList.add('tg-drop-target-empty');
         }
       });
@@ -2652,20 +3781,19 @@
         if (!draggedGroup) return;
         e.preventDefault();
 
-        const targetGroup = e.target.closest('.toolbar-group');
-        if (targetGroup && targetGroup !== draggedGroup) {
-          const rect = targetGroup.getBoundingClientRect();
-          const before = (e.clientX - rect.left) < rect.width / 2;
-          moveGroupUnit(draggedGroup, bar, before ? targetGroup : targetGroup.nextElementSibling);
-        } else if (!targetGroup) {
-          moveGroupUnit(draggedGroup, bar, null);
-        }
+        // O placeholder já está exatamente onde o grupo deve cair — usa a posição dele
+        // como referência de inserção, o que mantém drop e prévia sempre consistentes.
+        const insertBeforeEl = placeholder ? placeholder.nextSibling : null;
+        moveGroupUnit(draggedGroup, bar, insertBeforeEl);
 
         draggedGroup.classList.remove('tg-dragging');
-        document.querySelectorAll('.toolbar-group.tg-drop-before, .toolbar-group.tg-drop-after')
-          .forEach(el => el.classList.remove('tg-drop-before', 'tg-drop-after'));
+        if (draggedSep) draggedSep.classList.remove('tg-dragging');
+        if (draggedHandle) draggedHandle.classList.remove('tg-dragging');
         bar.classList.remove('tg-drop-target-empty');
+        removePlaceholder();
         draggedGroup = null;
+        draggedHandle = null;
+        draggedSep = null;
         saveToolbarOrder();
         toast('Grupo de ferramentas reposicionado.');
       });
@@ -2823,6 +3951,7 @@
     const wasActive = document.getElementById(btnId).classList.contains('active');
     stopActiveDraw();
     stopZoomMode();
+    stopSelectFeatureMode();
     if (wasActive) return; // clicar de novo no botão ativo só desliga
 
     document.getElementById(btnId).classList.add('active');
@@ -2844,7 +3973,7 @@
     // Um único handler para o evento de "desenho concluído", que se comporta
     // diferente conforme o que está ativo: medição, split, ou desenho de nova feição.
     const isMeasuring = document.getElementById('btn-measure').classList.contains('active');
-    const isSplitting = document.getElementById('btn-split').classList.contains('active');
+    const isSplitting = safeEl('btn-split').classList.contains('active');
 
     if (isSplitting) return; // o handler de split (mais abaixo) cuida deste evento
 
@@ -2882,6 +4011,7 @@
     stopMeasure();
     stopActiveDraw();
     stopZoomMode();
+    stopSelectFeatureMode();
     if (wasActive) {
       document.getElementById('measure-result').classList.remove('show');
       return;
@@ -2896,21 +4026,38 @@
   function openModal(title, bodyHtml, onConfirm) {
     document.getElementById('modal-title').textContent = title;
     document.getElementById('modal-body').innerHTML = bodyHtml;
-    document.getElementById('modal-overlay').classList.add('show');
+    const overlay = document.getElementById('modal-overlay');
+    overlay.classList.add('show');
     const confirmBtn = document.getElementById('modal-confirm');
     const cancelBtn = document.getElementById('modal-cancel');
-    const close = () => document.getElementById('modal-overlay').classList.remove('show');
-    const onConfirmWrap = () => { onConfirm(); close(); cleanup(); };
-    const onCancelWrap = () => { close(); cleanup(); };
-    function cleanup() {
-      confirmBtn.removeEventListener('click', onConfirmWrap);
-      cancelBtn.removeEventListener('click', onCancelWrap);
-    }
-    confirmBtn.addEventListener('click', onConfirmWrap);
-    cancelBtn.addEventListener('click', onCancelWrap);
+    const close = () => overlay.classList.remove('show');
+    // Troca os botões por clones "limpos" antes de religar os eventos. Isso descarta
+    // qualquer listener de uma chamada anterior a openModal() que não tenha sido
+    // removido, evitando que cliques futuros disparem também a ação de uma janela antiga.
+    const freshConfirm = confirmBtn.cloneNode(true);
+    confirmBtn.replaceWith(freshConfirm);
+    const freshCancel = cancelBtn.cloneNode(true);
+    cancelBtn.replaceWith(freshCancel);
+    freshConfirm.addEventListener('click', () => {
+      // close() sempre roda, mesmo se onConfirm() lançar um erro — assim a janela
+      // nunca fica "presa" na tela por causa de uma falha na ação confirmada.
+      try { onConfirm(); }
+      catch (err) { console.error(err); toast('Ocorreu um erro ao aplicar: ' + err.message, 4000); }
+      finally { close(); }
+    });
+    freshCancel.addEventListener('click', close);
+    // Fecha clicando fora da caixa (no fundo escuro) ou com Esc, para nunca deixar
+    // o usuário "preso" numa janela sem saída.
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+    document.addEventListener('keydown', function escHandler(e) {
+      if (e.key === 'Escape' && overlay.classList.contains('show')) {
+        close();
+        document.removeEventListener('keydown', escHandler);
+      }
+    });
   }
 
-  document.getElementById('btn-buffer').addEventListener('click', () => {
+  safeEl('btn-buffer').addEventListener('click', () => {
     const layer = state.layers.find(l => l.id === state.selectedLayerId);
     if (!layer) { toast('Selecione uma camada para aplicar o buffer.'); return; }
 
@@ -2940,7 +4087,7 @@
   });
 
   // ---------- Interseção ----------
-  document.getElementById('btn-intersect').addEventListener('click', () => {
+  safeEl('btn-intersect').addEventListener('click', () => {
     if (state.layers.length < 2) { toast('É preciso ao menos duas camadas para calcular interseção.'); return; }
 
     const optionsHtml = state.layers.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
@@ -2994,15 +4141,15 @@
   renderLayerList = function() {
     originalRenderLayerList();
     const twoOrMore = state.layers.length >= 2;
-    document.getElementById('btn-intersect').disabled = !twoOrMore;
-    document.getElementById('btn-union').disabled = !twoOrMore;
-    document.getElementById('btn-clip').disabled = !twoOrMore;
+    safeEl('btn-intersect').disabled = !twoOrMore;
+    safeEl('btn-union').disabled = !twoOrMore;
+    safeEl('btn-clip').disabled = !twoOrMore;
   };
 
   // ================= FASE 6 — Operações geométricas avançadas =================
 
   // ---------- Unir camadas ----------
-  document.getElementById('btn-union').addEventListener('click', () => {
+  safeEl('btn-union').addEventListener('click', () => {
     if (state.layers.length < 2) { toast('É preciso ao menos duas camadas para unir.'); return; }
     const optionsHtml = state.layers.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
     const bodyHtml = `
@@ -3053,7 +4200,7 @@
   });
 
   // ---------- Recortar (clip) ----------
-  document.getElementById('btn-clip').addEventListener('click', () => {
+  safeEl('btn-clip').addEventListener('click', () => {
     if (state.layers.length < 2) { toast('É preciso ao menos duas camadas: uma para recortar, outra como máscara.'); return; }
     const optionsHtml = state.layers.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
     const bodyHtml = `
@@ -3128,28 +4275,28 @@
     return [partA, partB].filter(Boolean);
   }
 
-  document.getElementById('btn-split').addEventListener('click', () => {
+  safeEl('btn-split').addEventListener('click', () => {
     const layer = state.layers.find(l => l.id === state.selectedLayerId);
     if (!layer) { toast('Selecione a camada com a feição que deseja dividir.'); return; }
 
-    const wasActive = document.getElementById('btn-split').classList.contains('active');
+    const wasActive = safeEl('btn-split').classList.contains('active');
     if (splitHandler) { splitHandler.disable(); splitHandler = null; }
-    document.getElementById('btn-split').classList.remove('active');
+    safeEl('btn-split').classList.remove('active');
     if (wasActive) return;
 
     stopActiveDraw();
     stopMeasure();
     splitTargetLayer = layer;
-    document.getElementById('btn-split').classList.add('active');
+    safeEl('btn-split').classList.add('active');
     splitHandler = new L.Draw.Polyline(state.map, { shapeOptions: { color: '#000', dashArray: '4,4', weight: 2 } });
     splitHandler.enable();
     toast('Desenhe uma linha atravessando a feição que deseja dividir (clique nos dois extremos, depois dê duplo clique).');
   });
 
   state.map.on(L.Draw.Event.CREATED, (e) => {
-    if (!document.getElementById('btn-split').classList.contains('active')) return;
+    if (!safeEl('btn-split').classList.contains('active')) return;
 
-    document.getElementById('btn-split').classList.remove('active');
+    safeEl('btn-split').classList.remove('active');
     splitHandler = null;
     const layer = splitTargetLayer;
     splitTargetLayer = null;
@@ -3273,11 +4420,20 @@
     });
     document.querySelectorAll('.toolbar-group[data-toolbar]').forEach(el => {
       const name = el.getAttribute('data-toolbar');
-      if (groupsToShow.has(name)) {
-        el.classList.remove('tb-hidden');
-      } else {
-        el.classList.add('tb-hidden');
-      }
+      const show = groupsToShow.has(name);
+      el.classList.toggle('tb-hidden', !show);
+
+      // A alça de arrastar (.drag-handle) e o separador (.toolbar-sep) que precedem o grupo
+      // vivem como IRMÃOS dele no HTML (fora da .toolbar-group), exceto no primeiro grupo
+      // de cada barra, onde a alça fica dentro. Por isso esconder só o .toolbar-group não
+      // bastava: a alça + separador continuavam visíveis, "sobrando" na tela.
+      // Aqui escondemos/mostramos esse conjunto (separador + alça + grupo) como uma unidade só.
+      const prevHandle = el.previousElementSibling && el.previousElementSibling.classList.contains('drag-handle')
+        ? el.previousElementSibling : null;
+      const prevSep = prevHandle && prevHandle.previousElementSibling && prevHandle.previousElementSibling.classList.contains('toolbar-sep')
+        ? prevHandle.previousElementSibling : null;
+      if (prevHandle) prevHandle.classList.toggle('tb-hidden', !show);
+      if (prevSep) prevSep.classList.toggle('tb-hidden', !show);
     });
   }
 
@@ -4134,6 +5290,24 @@
     // ---- Preenche panes "Informação" / "Fonte" / "Campos" com dados reais da camada ----
     function fillSimplePanes(layer) {
       const infoTable = document.getElementById('lp-info-table');
+      if (layer.isBasemap) {
+        // Camada base (raster): sem feições/geometria/campos, só o essencial (CRS incluso),
+        // conforme pedido — o resto (símbolos, campos etc.) fica para implementação futura.
+        infoTable.innerHTML = `
+          <tr><td>Nome</td><td>${layer.name}</td></tr>
+          <tr><td>Tipo de camada</td><td>Raster (mapa base / tiles)</td></tr>
+          <tr><td>CRS</td><td>${layer.crs || 'EPSG:3857 (WGS 84 / Pseudo-Mercator)'}</td></tr>
+          <tr><td>Visível</td><td>${layer.visible ? 'Sim' : 'Não'}</td></tr>
+        `;
+        const fonteTable = document.getElementById('lp-fonte-table');
+        fonteTable.innerHTML = `
+          <tr><td>Nome da camada</td><td>${layer.name}</td></tr>
+          <tr><td>Provedor</td><td>XYZ Tiles (OpenStreetMap / variação)</td></tr>
+        `;
+        const camposEl = document.getElementById('lp-campos-list');
+        camposEl.textContent = 'Camadas base não possuem campos de atributo.';
+        return;
+      }
       const nFeatures = layer.geojson.features.length;
       const geomType = nFeatures ? (layer.geojson.features[0].geometry ? layer.geojson.features[0].geometry.type : '—') : '—';
       infoTable.innerHTML = `
@@ -4155,11 +5329,36 @@
       camposEl.textContent = keys.size ? ('Campos: ' + Array.from(keys).join(', ')) : 'Nenhum campo de atributo definido.';
     }
 
+    // ---- Mostra/esconde, na barra lateral do diálogo, as abas que só fazem sentido para
+    // camadas vetoriais (Simbologia, Rótulos, Campos etc.) quando a camada é uma base raster ----
+    const VECTOR_ONLY_PANES = new Set([
+      'symbology', 'rotulos', 'mascaras', '3d', 'diagramas', 'campos', 'formulario',
+      'unioes', 'auxiliar', 'legenda', 'vetorizacao',
+    ]);
+    function setBasemapPaneVisibility(isBasemap) {
+      sidebarItems.forEach(it => {
+        const isVectorOnly = VECTOR_ONLY_PANES.has(it.dataset.pane);
+        it.style.display = (isBasemap && isVectorOnly) ? 'none' : '';
+      });
+    }
+
     // ---- Abre o diálogo para uma camada específica ----
     function openForLayer(layerId) {
       const layer = state.layers.find(l => l.id === layerId);
       if (!layer) { toast('Nenhuma camada selecionada.'); return; }
       editingLayerId = layerId;
+
+      setBasemapPaneVisibility(!!layer.isBasemap);
+
+      if (layer.isBasemap) {
+        // Camada base: sem simbologia vetorial para editar — abre direto em "Informação",
+        // que já traz o CRS. As demais abas de vetor ficam ocultas (ver setBasemapPaneVisibility).
+        fillSimplePanes(layer);
+        selectPane('info');
+        overlay.classList.add('show');
+        return;
+      }
+
       const saved = layer.symbology || {};
       draft = {
         color: layer.color || '#3caf3c',
@@ -4198,7 +5397,7 @@
     // ---- Aplica as mudanças de fato na camada Leaflet + lista de camadas ----
     function applyChangesToLayer() {
       const layer = state.layers.find(l => l.id === editingLayerId);
-      if (!layer) return;
+      if (!layer || layer.isBasemap) return; // camada base não tem simbologia vetorial para aplicar
       layer.color = draft.color;
       layer.fillOpacityPct = draft.opacity;
       layer.symbology = { ...draft };
