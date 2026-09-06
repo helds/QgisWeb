@@ -618,6 +618,26 @@
   }
   #statusbar .sep { width:1px; height:14px; background:var(--divider); }
   #coord-display { min-width:170px; font-variant-numeric: tabular-nums; }
+  #scale-value-display {
+    min-width: 90px;
+    max-width: 130px;
+    height: 17px;
+    font: inherit;
+    font-size: 11px;
+    color: var(--text-dim);
+    background: #fff;
+    border: 1px solid var(--panel-border);
+    border-radius: 2px;
+    padding: 0 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  #scale-value-display:hover { border-color: #8f8f8f; }
+  #scale-value-display:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: #fffef2;
+    color: var(--text);
+  }
 
   input[type=file] { display:none; }
 
@@ -1272,16 +1292,14 @@
     <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="mapnav" style="display:flex;align-items:center;">
     <button class="tool-btn" id="btn-pan" title="Pan (navegar pelo mapa)" style="background-image:url('icons/mActionPan.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-pan-to-selected" title="Aplicar pan à seleção" style="background-image:url('icons/mActionPanToSelected.svg')"></button>
+    <button class="tool-btn" id="btn-pan-to-selected" disabled title="Centralizar na seleção (sem zoom)" style="background-image:url('icons/mActionPanToSelected.svg')"></button>
     <button class="tool-btn" id="btn-zoom-in" title="Aproximar zoom" style="background-image:url('icons/mActionZoomIn.svg')"></button>
     <button class="tool-btn" id="btn-zoom-out" title="Reduzir zoom" style="background-image:url('icons/mActionZoomOut.svg')"></button>
     <button class="tool-btn" id="btn-zoom-extent" disabled title="Zoom para extensão da camada" style="background-image:url('icons/mActionZoomFullExtent.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-to-layer" title="Zoom para a camada" style="background-image:url('icons/mActionZoomToLayer.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-native" title="Zoom para resolução nativa da camada" style="background-image:url('icons/mActionZoomActual.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Aproximar para resolução nativa (100%)" style="background-image:url('icons/mActionZoomActual.svg')" disabled></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-last" title="Zoom anterior" style="background-image:url('icons/mActionZoomLast.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-next" title="Próximo zoom" style="background-image:url('icons/mActionZoomNext.svg')" disabled></button>
-    <button class="tool-btn not-implemented" id="btn-save-project-as" title="Salvar projeto como" style="background-image:url('icons/mActionFileSaveAs.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-to-layer" disabled title="Centralizar na camada selecionada (sem zoom)" style="background-image:url('icons/mActionZoomToLayer.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-native" disabled title="Zoom para resolução nativa da camada (não implementado)" style="background-image:url('icons/mActionZoomActual.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-last" disabled title="Vista anterior" style="background-image:url('icons/mActionZoomLast.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-next" disabled title="Próxima vista" style="background-image:url('icons/mActionZoomNext.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
@@ -1292,36 +1310,34 @@
     <div class="toolbar-sep"></div>
     <button class="tool-btn" id="btn-undo" disabled title="Desfazer (Ctrl+Z)" style="background-image:url('icons/mActionUndo.svg')"></button>
     <button class="tool-btn" id="btn-redo" disabled title="Refazer (Ctrl+Y)" style="background-image:url('icons/mActionRedo.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-history" title="Histórico do mapa" style="background-image:url('icons/mActionHistory.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-refresh" title="Atualizar mapa" style="background-image:url('icons/mActionRefresh.svg')"></button>
+    <button class="tool-btn" id="btn-history" title="Histórico de ações (edições)" style="background-image:url('icons/mActionHistory.svg')"></button>
+    <button class="tool-btn" id="btn-refresh" title="Atualizar página (F5)" style="background-image:url('icons/mActionRefresh.svg')"></button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="selection" style="display:flex;align-items:center;">
     <button class="tool-btn" id="btn-select-rect" title="Selecionar feição" style="background-image:url('icons/mActionSelectRectangle.svg')"></button>
     <button class="tool-dropdown" disabled title="Outros modos de seleção">▾</button>
-    <button class="tool-btn not-implemented" id="btn-copy-features" title="Copiar feições" style="background-image:url('icons/mActionEditCopy.svg')"></button>
+    <button class="tool-btn" id="btn-copy-features" title="Copiar feições" style="background-image:url('icons/mActionEditCopy.svg')"></button>
     <button class="tool-dropdown" disabled title="Colar feições">▾</button>
     <button class="tool-btn" id="btn-deselect" title="Desselecionar feição" style="background-image:url('icons/mActionDeselectAll.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-bookmark" title="Marcadores espaciais" style="background-image:url('icons/mActionNewBookmark.svg')"></button>
+    <button class="tool-btn" id="btn-bookmark" title="Destacar feição selecionada na tabela de atributos" style="background-image:url('icons/mActionNewBookmark.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="drag-handle"></div>
     <div class="toolbar-group" data-toolbar="attributes" style="display:flex;align-items:center;">
-    <button class="tool-btn not-implemented" id="btn-identify" title="Identificar feições" style="background-image:url('icons/mActionIdentify.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-select-expr" title="Selecionar feições por expressão" style="background-image:url('icons/mIconExpressionSelect.svg')"></button>
+    <button class="tool-btn" id="btn-identify" disabled title="Identificar feições (não implementado)" style="background-image:url('icons/mActionIdentify.svg')"></button>
     <button class="tool-btn" id="btn-open-attr" disabled title="Abrir tabela de atributos" style="background-image:url('icons/mActionOpenTable.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-stats" title="Resumo estatístico" style="background-image:url('icons/mActionCalculateField.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-options" title="Opções" style="background-image:url('icons/mActionOptions.svg')"></button>
+    <button class="tool-btn" id="btn-options" disabled title="Opções (não implementado)" style="background-image:url('icons/mActionOptions.svg')"></button>
     <button class="tool-btn not-implemented" id="btn-field-calc" title="Calculadora de campo" style="background-image:url('icons/mActionCalculateField.svg')"></button>
     <div class="toolbar-sep"></div>
     <button class="tool-btn" id="btn-measure" disabled title="Medir distância" style="background-image:url('icons/mActionMeasure.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
-    <button class="tool-btn not-implemented" id="btn-maptips" title="Mostrar dicas de mapa" style="background-image:url('icons/mActionMapTips.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-to-sel" title="Zoom para seleção" style="background-image:url('icons/mActionZoomToSelected.svg')"></button>
+    <button class="tool-btn" id="btn-maptips" disabled title="Mostrar dicas de mapa (não implementado)" style="background-image:url('icons/mActionMapTips.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-to-sel" title="Zoom para seleção" style="background-image:url('icons/mActionZoomToSelected.svg')"></button>
     <button class="tool-dropdown" disabled>▾</button>
     </div>
     <div class="toolbar-sep"></div>
@@ -1926,6 +1942,8 @@
   <div id="statusbar">
     <span id="coord-display">Lat: —, Lon: —</span>
     <div class="sep"></div>
+    <input type="text" id="scale-value-display" value="1:—" title="Digite a escala (ex.: 1:25000) e pressione Enter" spellcheck="false">
+    <div class="sep"></div>
     <span id="scale-display">Feições: 0</span>
     <div class="sep"></div>
     <span id="crs-display">CRS: WGS 84 (EPSG:4326)</span>
@@ -2031,19 +2049,8 @@
 
     // ---- Aproximar à Seleção: zoom apenas nas feições selecionadas da camada ----
     document.getElementById('ctx-zoom-selection').addEventListener('click', () => {
-      const layer = getActiveLayer();
       closeCtxMenu();
-      if (!layer) { toast('Selecione uma camada primeiro.'); return; }
-      if (layer.isBasemap) { toast('Camadas base não possuem feições selecionáveis.'); return; }
-      if (layer.selectedFeatures.size === 0) { toast('Nenhuma feição selecionada nesta camada.'); return; }
-      const selectedGeojson = {
-        type: 'FeatureCollection',
-        features: Array.from(layer.selectedFeatures).map(idx => layer.geojson.features[idx]).filter(Boolean),
-      };
-      try {
-        const tmp = L.geoJSON(selectedGeojson);
-        state.map.fitBounds(tmp.getBounds(), { padding: [20, 20] });
-      } catch (e) { toast('Não foi possível calcular a extensão da seleção.'); }
+      zoomToSelection();
     });
 
     // ---- Copiar camada: copia a camada (geojson + estilo) para uma "área de transferência" interna ----
@@ -2298,12 +2305,83 @@
   // ---------------- Mapa ----------------
   // Sem camada de base automática: o mapa começa em branco (tela vazia), como no QGIS,
   // até o usuário adicionar uma camada base pelo menu Complementos > Camadas Base do OSM.
-  state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-9.7, -36.0], 7); // Alagoas como default
+  // zoomSnap: 0 e zoomDelta: 0.25 permitem zoom fracionário (não só níveis inteiros),
+  // necessário para o campo de escala aplicar exatamente o valor digitado (ex.: 1:25000),
+  // igual ao comportamento do combo de escala no QGIS desktop.
+  state.map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.25 }).setView([-9.7, -36.0], 7); // Alagoas como default
 
   state.map.on('mousemove', (e) => {
     document.getElementById('coord-display').textContent =
       `Lat: ${e.latlng.lat.toFixed(5)}, Lon: ${e.latlng.lng.toFixed(5)}`;
   });
+
+  // ---------------- Escala do mapa (estilo QGIS: campo editável "1:N") ----------------
+  // O QGIS calcula a escala real a partir da resolução (metros/pixel) no centro
+  // da vista, considerando a distorção da projeção conforme a latitude (Web
+  // Mercator estica o mundo perto dos polos). Fórmula padrão de metros por
+  // pixel em EPSG:3857: 156543.03392 * cos(lat em rad) / 2^zoom.
+  // A escala 1:N é então N = metros_por_pixel / tamanho_do_pixel_em_metros,
+  // usando 0.00028 m (0.28mm) como o tamanho de pixel de referência do OGC/QGIS.
+  // Como o campo é editável (igual ao combo de escala do QGIS desktop), o mesmo
+  // fator serve nos dois sentidos: de zoom para "1:N" (exibição) e de "1:N" digitado
+  // de volta para um nível de zoom fracionário (Leaflet aceita zoom não-inteiro).
+  const QGIS_METERS_PER_PIXEL_REF = 0.00028;
+  const scaleInput = document.getElementById('scale-value-display');
+
+  function formatScaleNumber(n) {
+    // Agrupa milhares com ponto, como o QGIS mostra em pt-BR (ex.: 1:50.000)
+    return Math.round(n).toLocaleString('pt-BR');
+  }
+
+  function scaleDenominatorForZoom(zoom, lat) {
+    const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+    return metersPerPixel / QGIS_METERS_PER_PIXEL_REF;
+  }
+
+  function zoomForScaleDenominator(denominator, lat) {
+    // Inverso de scaleDenominatorForZoom: isola o zoom a partir do denominador desejado.
+    const metersPerPixel = denominator * QGIS_METERS_PER_PIXEL_REF;
+    return Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) / metersPerPixel);
+  }
+
+  function updateScaleDisplay() {
+    if (document.activeElement === scaleInput) return; // não sobrescreve enquanto a pessoa está digitando
+    const zoom = state.map.getZoom();
+    const centerLat = state.map.getCenter().lat;
+    const scaleDenominator = scaleDenominatorForZoom(zoom, centerLat);
+    if (scaleInput) scaleInput.value = `1:${formatScaleNumber(scaleDenominator)}`;
+  }
+
+  // Aceita "1:25000", "1/25000", "25000" ou "25.000" — extrai só o denominador.
+  function parseScaleInput(raw) {
+    const cleaned = String(raw).trim();
+    const afterColon = cleaned.includes(':') ? cleaned.split(':').pop() : (cleaned.includes('/') ? cleaned.split('/').pop() : cleaned);
+    const digitsOnly = afterColon.replace(/[.\s]/g, '').replace(',', '.');
+    const value = parseFloat(digitsOnly);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  function applyScaleFromInput() {
+    const denominator = parseScaleInput(scaleInput.value);
+    if (!denominator) {
+      toast('Escala inválida. Use o formato 1:25000, por exemplo.');
+      updateScaleDisplay(); // restaura o valor atual, já que a digitação não foi aceita
+      return;
+    }
+    const centerLat = state.map.getCenter().lat;
+    const newZoom = zoomForScaleDenominator(denominator, centerLat);
+    state.map.setZoom(newZoom); // dispara zoomend, que por sua vez chama updateScaleDisplay()
+  }
+
+  scaleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); scaleInput.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); updateScaleDisplay(); scaleInput.blur(); }
+  });
+  scaleInput.addEventListener('blur', applyScaleFromInput);
+  scaleInput.addEventListener('click', () => scaleInput.select());
+
+  state.map.on('zoomend moveend', updateScaleDisplay);
+  updateScaleDisplay(); // valor inicial, assim que o mapa carrega
 
   // ---------------- Botões da toolbar (estilo QGIS) ----------------
   // Zoom in/out: ativam um "modo de ferramenta" — o cursor vira lupa e um clique
@@ -2396,6 +2474,181 @@
         if (row) row.scrollIntoView({ block: 'nearest' });
       }, 0);
     }
+  });
+
+  // ---------------- Zoom/centralização relacionados à camada e à seleção ----------------
+
+  // "Aproximar à Seleção" (usado pelo botão da toolbar e pelo menu de contexto da camada):
+  // enquadra o mapa exatamente nas feições selecionadas da camada ativa.
+  function zoomToSelection() {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+    if (layer.isBasemap) { toast('Camadas base não possuem feições selecionáveis.'); return; }
+    if (layer.selectedFeatures.size === 0) { toast('Nenhuma feição selecionada nesta camada.'); return; }
+    const selectedGeojson = {
+      type: 'FeatureCollection',
+      features: Array.from(layer.selectedFeatures).map(idx => layer.geojson.features[idx]).filter(Boolean),
+    };
+    try {
+      const tmp = L.geoJSON(selectedGeojson);
+      state.map.fitBounds(tmp.getBounds(), { padding: [20, 20] });
+    } catch (e) { toast('Não foi possível calcular a extensão da seleção.'); }
+  }
+  document.getElementById('btn-zoom-to-sel').addEventListener('click', zoomToSelection);
+
+  // "Centralizar na seleção (sem zoom)": move o centro do mapa para o centroide das
+  // feições selecionadas, mas mantém o nível de zoom atual (panTo, não fitBounds).
+  document.getElementById('btn-pan-to-selected').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+    if (layer.isBasemap) { toast('Camadas base não possuem feições selecionáveis.'); return; }
+    if (layer.selectedFeatures.size === 0) { toast('Nenhuma feição selecionada nesta camada.'); return; }
+    const selectedGeojson = {
+      type: 'FeatureCollection',
+      features: Array.from(layer.selectedFeatures).map(idx => layer.geojson.features[idx]).filter(Boolean),
+    };
+    try {
+      const tmp = L.geoJSON(selectedGeojson);
+      const center = tmp.getBounds().getCenter();
+      state.map.panTo(center);
+    } catch (e) { toast('Não foi possível calcular o centro da seleção.'); }
+  });
+
+  // "Centralizar na camada selecionada (sem zoom)": mesma ideia, mas para a extensão
+  // inteira da camada ativa, independente de haver feições selecionadas ou não.
+  document.getElementById('btn-zoom-to-layer').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+    try {
+      const center = layer.leafletLayer.getBounds().getCenter();
+      state.map.panTo(center);
+    } catch (e) { toast('Não foi possível calcular o centro da camada.'); }
+  });
+
+  // ---------------- Histórico de VISTAS do mapa (zoom/pan) — como voltar/avançar do navegador ----------------
+  // Independente do histórico de EDIÇÕES (undo/redo de dados, mais abaixo). Aqui guardamos
+  // apenas os "bounds" (área visível) do mapa a cada vez que o usuário para de navegar,
+  // para permitir voltar e avançar entre vistas — igual ao Zoom Anterior/Próximo do QGIS.
+  const viewHistory = { stack: [], index: -1 };
+  let viewHistoryTimer = null;
+  let restoringViewHistory = false; // true enquanto aplicamos uma vista do histórico, para não regravar
+
+  function pushViewHistorySoon() {
+    if (restoringViewHistory) return;
+    clearTimeout(viewHistoryTimer);
+    // debounce: só grava a vista quando o usuário pausa a navegação (evita uma entrada
+    // por frame durante um arraste ou uma animação de zoom contínua)
+    viewHistoryTimer = setTimeout(() => {
+      const bounds = state.map.getBounds();
+      // Se a vista atual é essencialmente igual à última gravada, não duplica entrada.
+      const last = viewHistory.stack[viewHistory.index];
+      if (last && last.equals(bounds, 0.0001)) return;
+      viewHistory.stack = viewHistory.stack.slice(0, viewHistory.index + 1);
+      viewHistory.stack.push(bounds);
+      viewHistory.index = viewHistory.stack.length - 1;
+      updateViewHistoryButtons();
+    }, 400);
+  }
+
+  function updateViewHistoryButtons() {
+    document.getElementById('btn-zoom-last').disabled = viewHistory.index <= 0;
+    document.getElementById('btn-zoom-next').disabled = viewHistory.index >= viewHistory.stack.length - 1;
+  }
+
+  document.getElementById('btn-zoom-last').addEventListener('click', () => {
+    if (viewHistory.index <= 0) return;
+    restoringViewHistory = true;
+    viewHistory.index--;
+    state.map.fitBounds(viewHistory.stack[viewHistory.index]);
+    updateViewHistoryButtons();
+    setTimeout(() => { restoringViewHistory = false; }, 0);
+  });
+  document.getElementById('btn-zoom-next').addEventListener('click', () => {
+    if (viewHistory.index >= viewHistory.stack.length - 1) return;
+    restoringViewHistory = true;
+    viewHistory.index++;
+    state.map.fitBounds(viewHistory.stack[viewHistory.index]);
+    updateViewHistoryButtons();
+    setTimeout(() => { restoringViewHistory = false; }, 0);
+  });
+
+  state.map.on('moveend zoomend', pushViewHistorySoon);
+  updateViewHistoryButtons(); // ambos desabilitados até a primeira vista ser gravada
+
+  // ---------------- Atualizar página (F5) ----------------
+  document.getElementById('btn-refresh').addEventListener('click', () => location.reload());
+
+  // ---------------- Histórico de ações (edições) ----------------
+  // Mostra a pilha de snapshots que já alimenta Desfazer/Refazer (history.stack, definida
+  // mais abaixo), como uma lista simples de pontos no tempo que o usuário pode inspecionar.
+  document.getElementById('btn-history').addEventListener('click', () => {
+    if (!history.stack.length) { toast('Nenhuma ação no histórico ainda.'); return; }
+    const rows = history.stack.map((snap, i) => {
+      const isCurrent = i === history.index;
+      const nLayers = snap.layers.length;
+      const label = i === 0 ? 'Estado inicial' : `Ação ${i}`;
+      return `<div class="dd-item" style="padding:6px 10px; ${isCurrent ? 'background:var(--selected); font-weight:600;' : ''}">
+        <span class="dd-label">${label} — ${nLayers} camada(s)${isCurrent ? ' (atual)' : ''}</span>
+      </div>`;
+    }).join('');
+    openModal('Histórico de ações', `<div style="max-height:280px; overflow-y:auto; border:1px solid var(--panel-border); background:#fff;">${rows}</div>`, () => {});
+    // Este modal é só informativo (sem ação a confirmar): esconde "Cancelar" e troca
+    // o rótulo do botão principal para "Fechar", sem alterar o comportamento genérico
+    // de openModal() usado pelos demais diálogos (Buffer, Interseção etc.).
+    const cancelBtn = document.getElementById('modal-cancel');
+    const confirmBtn = document.getElementById('modal-confirm');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    if (confirmBtn) confirmBtn.textContent = 'Fechar';
+    const overlay = document.getElementById('modal-overlay');
+    const restoreButtons = () => {
+      if (cancelBtn) cancelBtn.style.display = '';
+      if (confirmBtn) confirmBtn.textContent = 'Aplicar';
+      overlay.removeEventListener('transitionend', restoreButtons);
+    };
+    // Restaura os rótulos padrão assim que este modal específico for fechado, para não
+    // afetar os próximos modais (Buffer, Interseção, União, Recorte) que reaproveitam
+    // os mesmos elementos #modal-cancel/#modal-confirm.
+    document.getElementById('modal-confirm').addEventListener('click', restoreButtons, { once: true });
+    document.getElementById('modal-cancel').addEventListener('click', restoreButtons, { once: true });
+  });
+
+  // ---------------- Copiar feições selecionadas ----------------
+  // Copia as feições selecionadas da camada ativa para uma área de transferência interna
+  // (state.featureClipboard), no mesmo espírito do "Copiar camada" já existente no menu
+  // de contexto. Colar (função separada, ainda não pedida) usaria esse mesmo clipboard.
+  document.getElementById('btn-copy-features').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+    if (layer.isBasemap) { toast('Camadas base não possuem feições selecionáveis.'); return; }
+    if (layer.selectedFeatures.size === 0) { toast('Nenhuma feição selecionada para copiar.'); return; }
+    state.featureClipboard = {
+      layerId: layer.id,
+      features: Array.from(layer.selectedFeatures).map(idx => JSON.parse(JSON.stringify(layer.geojson.features[idx]))).filter(Boolean),
+    };
+    toast(`${state.featureClipboard.features.length} feição(ões) copiada(s).`);
+  });
+
+  // ---------------- Destacar feição selecionada na tabela de atributos ----------------
+  // Abre/expande a tabela de atributos da camada ativa e rola até a primeira feição
+  // selecionada, aplicando um destaque temporário (pisca) para chamar atenção na linha.
+  document.getElementById('btn-bookmark').addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === state.selectedLayerId);
+    if (!layer) { toast('Selecione uma camada primeiro.'); return; }
+    if (layer.isBasemap) { toast('Camadas base não possuem tabela de atributos.'); return; }
+    if (layer.selectedFeatures.size === 0) { toast('Nenhuma feição selecionada nesta camada.'); return; }
+    const firstIdx = Math.min(...layer.selectedFeatures);
+    document.getElementById('attr-panel').classList.remove('collapsed');
+    document.getElementById('attr-toggle').textContent = '▼ recolher';
+    setTimeout(() => {
+      const row = document.querySelector(`#attr-table tr[data-idx="${firstIdx}"]`);
+      if (row) {
+        row.scrollIntoView({ block: 'center' });
+        row.style.transition = 'none';
+        row.style.outline = '2px solid var(--accent)';
+        setTimeout(() => { row.style.transition = 'outline-color 0.6s ease'; row.style.outlineColor = 'transparent'; }, 50);
+        setTimeout(() => { row.style.outline = ''; row.style.transition = ''; }, 700);
+      }
+    }, 0);
   });
 
   // Gerenciador de fontes de dados: mesmo fluxo do botão de importar shapefile.
