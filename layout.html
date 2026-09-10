@@ -147,6 +147,13 @@
     display:flex; align-items:flex-start; justify-content:center;
     padding:40px;
   }
+  #canvas-scroll.pan-cursor { cursor: grab; }
+  #canvas-scroll.pan-cursor.panning { cursor: grabbing; }
+  #canvas-scroll.zoom-cursor, #canvas-scroll.zoom-cursor #page { cursor: zoom-in; }
+  #canvas-scroll.crosshair-cursor, #canvas-scroll.crosshair-cursor #page { cursor: crosshair; }
+  #canvas-scroll.crosshair-cursor .layout-item,
+  #canvas-scroll.crosshair-cursor .leaflet-container,
+  #canvas-scroll.crosshair-cursor .leaflet-container .leaflet-interactive { cursor: crosshair !important; }
   #page {
     position:relative;
     background: var(--page-bg);
@@ -161,19 +168,48 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
   }
+  /* Itens bloqueados: leve indicação visual permanente, já que não podem
+     mais ser selecionados/clicados no canvas (comportamento oficial do QGIS). */
+  .layout-item.locked-item {
+    outline: 1px dashed #8a8a8a;
+    outline-offset: 1px;
+  }
+  .layout-item.locked-item::after {
+    content: '';
+    position:absolute; top:2px; right:2px; width:12px; height:12px;
+    background: rgba(255,255,255,0.85);
+    border:1px solid #8a8a8a; border-radius:2px;
+    background-image:url('icons/locked.svg');
+    background-repeat:no-repeat; background-position:center; background-size:9px 9px;
+    pointer-events:none;
+  }
   .layout-item .resize-handle {
     position:absolute; width:9px; height:9px;
     background:#fff; border:1px solid var(--accent);
     display:none;
   }
   .layout-item.selected .resize-handle { display:block; }
+  /* Item bloqueado e selecionado pelo painel de Itens: mesmo assim não mostra a
+     alça de redimensionar, já que arrastá-la não tem efeito (ver makeItemInteractive). */
+  .layout-item.selected.locked-item .resize-handle { display:none; }
   .layout-item .resize-handle.br { right:-5px; bottom:-5px; cursor:nwse-resize; }
 
-  .layout-item.map-item { overflow:hidden; background:#e3e3e3; }
-  .layout-item.map-item .leaflet-container { background:#e3e3e3; }
+  .layout-item.map-item { overflow:hidden; background:#ffffff; }
+  .layout-item.map-item .leaflet-container { background:#ffffff; }
   .layout-item.map-item .map-placeholder-msg {
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     text-align:center; padding:10px; color:var(--text-dim); font-size:11.5px; pointer-events:none;
+  }
+  /* Rotação do mapa (item.mapRotation, aba Propriedades > Rotação do mapa):
+     gira só o CONTEÚDO do mapa, nunca a moldura/textos do item — igual ao
+     QGIS. O .map-leaflet-div é desenhado maior que o item (200% de cada
+     lado) e centralizado, para que os cantos que aparecem ao girar sempre
+     fiquem cobertos por mapa real; o .map-item pai (overflow:hidden, acima)
+     corta o excedente na borda da moldura. Ver applyMapRotation(). */
+  .layout-item.map-item .map-leaflet-div {
+    position:absolute;
+    left:-50%; top:-50%; width:200%; height:200%;
+    transform-origin: center center;
   }
 
   .layout-item.legend-item {
@@ -189,6 +225,44 @@
   .layout-item.label-item {
     background:transparent; display:flex; align-items:center; padding:2px 4px; font-size:13px;
   }
+  .layout-item.image-item { background:transparent; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .layout-item.image-item img { width:100%; height:100%; object-fit:contain; pointer-events:none; user-select:none; }
+  .layout-item.image-item .image-empty-msg { color:var(--text-dim); font-size:11px; text-align:center; padding:8px; pointer-events:none; }
+
+  .layout-item.northarrow-item { background:transparent; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .layout-item.northarrow-item svg { width:100%; height:100%; pointer-events:none; }
+
+  .layout-item.shape-item { background:transparent; }
+  .layout-item.shape-item svg { width:100%; height:100%; overflow:visible; }
+
+  .layout-item.marker-item { background:transparent; display:flex; align-items:center; justify-content:center; overflow:visible; }
+  .layout-item.marker-item svg { width:100%; height:100%; overflow:visible; }
+
+  .layout-item.arrow-item { background:transparent; overflow:visible; }
+  .layout-item.arrow-item svg { width:100%; height:100%; overflow:visible; }
+
+  /* ---------- Item de forma nodal (polígono/polilinha) + edição de nós ---------- */
+  .layout-item.nodeshape-item { background:transparent; overflow:visible; }
+  .layout-item.nodeshape-item svg { width:100%; height:100%; overflow:visible; }
+  .node-handle {
+    position:absolute; width:9px; height:9px; margin:-5px 0 0 -5px;
+    background:#fff; border:1px solid var(--accent); border-radius:50%;
+    cursor:pointer; z-index:20;
+  }
+  .node-handle.dragging-node { background: var(--accent); }
+  #node-draw-hint {
+    position:fixed; bottom:34px; left:50%; transform:translateX(-50%);
+    background:#2a2a2a; color:#fff; padding:6px 14px; border-radius:4px;
+    font-size:12px; z-index:5000; pointer-events:none; display:none;
+  }
+  #node-draw-hint.show { display:block; }
+
+  .northarrow-swatch {
+    width:46px; height:46px; border:1px solid var(--panel-border); border-radius:3px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; background:#fafafa;
+  }
+  .northarrow-swatch:hover { border-color: var(--accent); background: var(--hover); }
+  .northarrow-swatch svg { width:34px; height:34px; }
 
   /* ---------- Painéis à direita ---------- */
   #right-panels {
@@ -205,22 +279,159 @@
   }
   .panel-body { padding:8px; max-height:260px; overflow:auto; }
 
+  /* ---------- Painel "Itens" (abas Itens / Desfazer histórico) ---------- */
+  #items-panel-block { display:flex; flex-direction:column; flex:0 0 auto; }
+  #items-tabs {
+    display:flex; align-items:stretch;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--panel-border);
+  }
+  #items-tabs .items-tab {
+    padding: 5px 14px 6px;
+    cursor:default;
+    font-size:12.5px;
+    color: var(--text);
+    border-right: 1px solid var(--panel-border);
+    background: var(--toolbar-bg);
+    border-bottom: 2px solid transparent;
+  }
+  #items-tabs .items-tab.active {
+    background: var(--panel-bg);
+    border-bottom: 2px solid var(--accent);
+    font-weight:600;
+  }
+  #items-tabs .items-tab:hover:not(.active) { background: var(--hover); }
+
+  #items-panel-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:3px 6px;
+    border-bottom:1px solid var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--text-dim);
+    font-weight:600;
+  }
+  #items-panel-header .items-panel-icons { display:flex; align-items:center; gap:6px; }
+  #items-panel-header .items-panel-icons span {
+    width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer; border-radius:2px; color: var(--text-dim); font-size:12px;
+  }
+  #items-panel-header .items-panel-icons span:hover { background: var(--hover); color:var(--text); }
+
+  #items-table-head {
+    display:flex; align-items:center;
+    border-bottom:1px solid var(--panel-border);
+    background: var(--panel-bg);
+    font-size:12px; color:var(--text-dim);
+    padding:2px 6px 2px 4px;
+  }
+  #items-table-head .col-eye { width:26px; flex-shrink:0; text-align:center; }
+  #items-table-head .col-lock { width:26px; flex-shrink:0; text-align:center; }
+  #items-table-head .col-item { flex:1; padding-left:2px; }
+
+  #items-list-wrap { max-height:190px; overflow:auto; background: var(--page-bg); }
   #items-list { list-style:none; margin:0; padding:0; }
   #items-list li {
-    display:flex; align-items:center; gap:6px;
-    padding:3px 6px; cursor:default; border-radius:2px;
+    display:flex; align-items:center;
+    padding:2px 6px 2px 4px; cursor:default;
+    border-bottom:1px solid #ececec;
   }
   #items-list li:hover { background: var(--hover); }
-  #items-list li.selected { background: var(--selected); font-weight:600; }
-  #items-list li .item-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #items-list li.selected { background: var(--selected); }
+  #items-list li .col-eye, #items-list li .col-lock {
+    width:26px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  }
+  #items-list li .col-eye input, #items-list li .col-lock input {
+    margin:0; cursor:pointer;
+  }
+  #items-list li .item-icon {
+    width:16px; height:16px; flex-shrink:0; margin-right:5px;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  #items-list li .item-icon svg { width:15px; height:15px; }
+  #items-list li .item-name {
+    flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  #items-list li.selected .item-name { font-weight:600; }
+  #items-list li.item-hidden .item-name { color: var(--text-dim); font-style:italic; }
 
   .prop-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
   .prop-row label { width:110px; flex-shrink:0; color:var(--text-dim); }
   .prop-row input[type="number"], .prop-row input[type="text"], .prop-row select {
     flex:1; padding:3px 5px; border:1px solid var(--panel-border); border-radius:2px; font-size:12px;
   }
+  .prop-row.prop-row-checkbox label { width:auto; flex:1; color:var(--text); }
+  .prop-row.prop-row-checkbox input[type="checkbox"] { flex:0 0 auto; margin:0; cursor:pointer; }
 
   #no-selection-msg { color:var(--text-dim); padding:8px; font-style:italic; }
+
+  /* ---------- Grupos colapsáveis (accordion) no painel "Propriedades do item",
+     igual à organização real do QGIS: Propriedades principais, Camadas,
+     Extensões, Posição e tamanho, Moldura, Plano de fundo, Item ID, Variáveis... ---------- */
+  .prop-group { border-bottom:1px solid var(--panel-border); }
+  .prop-group:last-child { border-bottom:none; }
+  .prop-group-header {
+    display:flex; align-items:center; gap:5px;
+    padding:5px 6px; cursor:pointer; user-select:none;
+    font-weight:600; font-size:12px;
+    background: var(--toolbar-bg);
+  }
+  .prop-group-header:hover { background: var(--hover); }
+  .prop-group-header .chevron {
+    display:inline-block; width:9px; height:9px;
+    border-right:1.6px solid var(--text-dim); border-bottom:1.6px solid var(--text-dim);
+    transform: rotate(-45deg); transition: transform .12s ease; flex-shrink:0; margin-left:2px;
+  }
+  .prop-group.collapsed .prop-group-header .chevron { transform: rotate(45deg); }
+  .prop-group-body { padding:8px 8px 10px; }
+  .prop-group.collapsed .prop-group-body { display:none; }
+
+  /* Grupos "vazios" do painel de propriedades (Intervalo Temporal, Controlado
+     por Atlas, Visões gerais): existem no QGIS real mas não foram detalhados
+     nos prints enviados, então ficam só como cabeçalho cinza/desabilitado,
+     sem seta de expandir e sem conteúdo — mesmo tratamento visual dado aos
+     botões .tool-btn.not-implemented usados no resto do app. */
+  .prop-group.disabled .prop-group-header { color: var(--text-dim); cursor:default; }
+  .prop-group.disabled .prop-group-header:hover { background: var(--toolbar-bg); }
+  .prop-group.disabled .prop-group-header input[type="checkbox"] { pointer-events:none; }
+
+  /* Campo com seletor de unidade ao lado (mm/px), como em "Posição e tamanho" */
+  .prop-row-unit { display:flex; align-items:center; gap:4px; flex:1; }
+  .prop-row-unit select.unit-select { flex:0 0 auto; width:50px; padding:3px 2px; border:1px solid var(--panel-border); border-radius:2px; font-size:11px; }
+
+  /* Cadeado de "manter proporção" entre Largura/Altura */
+  .lock-toggle-btn {
+    flex:0 0 auto; width:20px; height:20px; padding:0;
+    border:1px solid var(--panel-border); border-radius:2px; background:#fff;
+    cursor:pointer; font-size:11px; line-height:1;
+    display:flex; align-items:center; justify-content:center; color:var(--text-dim);
+  }
+  .lock-toggle-btn.active { background: var(--selected); border-color:var(--accent); color:var(--accent-dark); }
+
+  /* Grade 3x3 de "Ponto de referência" (âncora de posição/tamanho do item) */
+  .refpoint-row { display:flex; gap:6px; margin-bottom:2px; }
+  .refpoint-row label { width:110px; flex-shrink:0; color:var(--text-dim); padding-top:2px; }
+  .refpoint-grid { display:grid; grid-template-columns:repeat(3,15px); grid-template-rows:repeat(3,15px); gap:6px; }
+  .refpoint-grid input { margin:0; cursor:pointer; }
+
+  /* Lista de grades (Grades / Visões gerais no futuro) */
+  .grid-list-toolbar { display:flex; gap:2px; margin-bottom:5px; }
+  .grid-list-toolbar .tool-btn { width:24px; height:24px; background-size:15px 15px; border:1px solid var(--panel-border); background-color:#fff; }
+  .grid-empty-list { min-height:56px; border:1px solid var(--panel-border); background:#fff; border-radius:2px; margin-bottom:6px; }
+  .grid-modify-btn { width:100%; padding:4px; border:1px solid var(--panel-border); border-radius:2px; background:#eee; color:var(--text-dim); cursor:not-allowed; }
+
+  /* Mini-toolbar embutida no topo do painel de propriedades do item de Mapa,
+     equivalente à "Barra de Ferramentas" descrita na documentação do QGIS
+     (atualizar, ajustar à extensão da tela, mover conteúdo do item, etc.) */
+  #map-item-toolbar {
+    display:flex; align-items:center; flex-wrap:wrap;
+    gap:1px; padding:3px 4px;
+    border-bottom:1px solid var(--panel-border);
+    background: var(--panel-bg);
+  }
+  #map-item-toolbar .tool-btn { width:24px; height:24px; background-size:17px 17px; }
+  #map-item-toolbar .toolbar-sep { height:16px; margin:0 3px; }
+
+  .prop-hint { color:var(--text-dim); font-size:11px; line-height:1.4; }
 
   /* ---------- Barra de status ---------- */
   #statusbar {
@@ -289,14 +500,14 @@
   </div>
 
   <div class="toolbar-row" id="toolbar-row2">
-    <button class="tool-btn not-implemented" id="btn-zoom-in" title="Ampliar zoom" style="background-image:url('icons/mActionZoomIn.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-out" title="Reduzir zoom" style="background-image:url('icons/mActionZoomOut.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-actual" title="Zoom para 100%" style="background-image:url('icons/mActionZoomActual.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-zoom-full" title="Aproximar tudo" style="background-image:url('icons/mActionZoomFullExtent.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-refresh" title="Atualizar" style="background-image:url('icons/mActionRefresh.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-in" title="Ampliar zoom" style="background-image:url('icons/mActionZoomIn.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-out" title="Reduzir zoom" style="background-image:url('icons/mActionZoomOut.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-actual" title="Zoom para 100%" style="background-image:url('icons/mActionZoomActual.svg')"></button>
+    <button class="tool-btn" id="btn-zoom-full" title="Aproximar tudo" style="background-image:url('icons/mActionZoomFullExtent.svg')"></button>
+    <button class="tool-btn" id="btn-refresh" title="Atualizar" style="background-image:url('icons/mActionRefresh.svg')"></button>
     <div class="toolbar-sep"></div>
-    <button class="tool-btn not-implemented" id="btn-lock-selected" title="Bloquear itens selecionados" style="background-image:url('icons/locked.svg')"></button>
-    <button class="tool-btn not-implemented" id="btn-unlock-all" title="Desbloquear tudo" style="background-image:url('icons/unlocked.svg')"></button>
+    <button class="tool-btn" id="btn-lock-selected" title="Bloquear itens selecionados" style="background-image:url('icons/locked.svg')"></button>
+    <button class="tool-btn" id="btn-unlock-all" title="Desbloquear tudo" style="background-image:url('icons/unlocked.svg')"></button>
     <div class="toolbar-sep"></div>
     <div class="tool-btn-dropdown">
       <button class="tool-btn not-implemented" id="btn-align-items" title="Alinhar itens" style="background-image:url('icons/mActionAddBasicRectangle.svg')"></button>
@@ -314,37 +525,54 @@
 
   <div id="body-row">
     <div id="vtoolbar">
-      <button class="tool-btn not-implemented" id="tool-pan" title="Deslocar layout" style="background-image:url('icons/mActionPan.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-zoom-area" title="Zoom" style="background-image:url('icons/mActionZoomToArea.svg')"></button>
+      <button class="tool-btn" id="tool-pan" title="Deslocar layout" style="background-image:url('icons/mActionPan.svg')"></button>
+      <button class="tool-btn" id="tool-zoom-area" title="Zoom" style="background-image:url('icons/mActionZoomToArea.svg')"></button>
       <div class="toolbar-sep-h"></div>
       <button class="tool-btn active" id="tool-select" title="Selecionar/mover item" style="background-image:url('icons/mActionSelect.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-move-content" title="Mover conteúdo do item" style="background-image:url('icons/mActionMoveItemContent.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-edit-nodes" title="Editar nós de item" style="background-image:url('icons/mActionAddNodesItem.svg')"></button>
+      <button class="tool-btn" id="tool-move-content" title="Mover conteúdo do item" style="background-image:url('icons/mActionMoveItemContent.svg')"></button>
+      <button class="tool-btn" id="tool-edit-nodes" title="Editar nós de item" style="background-image:url('icons/mActionAddNodesItem.svg')"></button>
       <div class="toolbar-sep-h"></div>
       <button class="tool-btn" id="tool-add-map" title="Adicionar mapa" style="background-image:url('icons/mActionAddMap.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-map3d" title="Adicionar mapa 3D" style="background-image:url('icons/mActionAdd3DMap.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-image" title="Adicionar imagem" style="background-image:url('icons/mActionAddImage.svg')"></button>
+      <button class="tool-btn" id="tool-add-map3d" title="Adicionar mapa 3D" disabled style="background-image:url('icons/mActionAdd3DMap.svg')"></button>
+      <button class="tool-btn" id="tool-add-image" title="Adicionar imagem" style="background-image:url('icons/mActionAddImage.svg')"></button>
       <button class="tool-btn" id="tool-add-label" title="Adicionar rótulo" style="background-image:url('icons/mActionLabel.svg')"></button>
       <button class="tool-btn" id="tool-add-legend" title="Adicionar legenda" style="background-image:url('icons/mActionAddLegend.svg')"></button>
       <button class="tool-btn" id="tool-add-scalebar" title="Adicionar barra de escala" style="background-image:url('icons/mActionScaleBar.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-north-arrow" title="Adicionar seta norte" style="background-image:url('icons/north_arrow.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-shape" title="Adicionar forma" style="background-image:url('icons/mActionAddBasicShape.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-marker" title="Adicionar marcador" style="background-image:url('icons/mActionAddMarker.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-arrow" title="Adicionar seta" style="background-image:url('icons/mActionAddArrow.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-node-shape" title="Adicionar polígono/polilinha" style="background-image:url('icons/mActionAddPolygon.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-html" title="Adicionar HTML" style="background-image:url('icons/mActionAddHtml.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-table" title="Adicionar tabela de atributos" style="background-image:url('icons/mActionAddTable.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-fixed-table" title="Adicionar tabela fixa" style="background-image:url('icons/mActionAddManualTable.svg')"></button>
-      <button class="tool-btn not-implemented" id="tool-add-elevation-profile" title="Adicionar perfil de elevação" style="background-image:url('icons/mActionElevationProfile.svg')"></button>
+      <button class="tool-btn" id="tool-add-north-arrow" title="Adicionar seta norte" style="background-image:url('icons/north_arrow.svg')"></button>
+      <button class="tool-btn" id="tool-add-shape" title="Adicionar forma" style="background-image:url('icons/mActionAddBasicShape.svg')"></button>
+      <button class="tool-btn" id="tool-add-marker" title="Adicionar marcador" style="background-image:url('icons/mActionAddMarker.svg')"></button>
+      <button class="tool-btn" id="tool-add-arrow" title="Adicionar seta" style="background-image:url('icons/mActionAddArrow.svg')"></button>
+      <button class="tool-btn" id="tool-add-node-shape" title="Adicionar polígono/polilinha" style="background-image:url('icons/mActionAddPolygon.svg')"></button>
+      <button class="tool-btn" id="tool-add-html" title="Adicionar HTML" disabled style="background-image:url('icons/mActionAddHtml.svg')"></button>
+      <button class="tool-btn" id="tool-add-table" title="Adicionar tabela de atributos" disabled style="background-image:url('icons/mActionAddTable.svg')"></button>
+      <button class="tool-btn" id="tool-add-fixed-table" title="Adicionar tabela fixa" disabled style="background-image:url('icons/mActionAddManualTable.svg')"></button>
+      <button class="tool-btn" id="tool-add-elevation-profile" title="Adicionar perfil de elevação" disabled style="background-image:url('icons/mActionElevationProfile.svg')"></button>
     </div>
     <div id="canvas-scroll">
-      <div id="page" style="width:793px; height:1122px;"><!-- A4 a 96dpi --></div>
+      <div id="page-wrapper" style="position:relative; width:1122px; height:793px; flex-shrink:0;">
+        <div id="page" style="width:1122px; height:793px;"><!-- A4 a 96dpi, paisagem --></div>
+      </div>
     </div>
 
     <div id="right-panels">
-      <div class="panel-block" style="flex:0 0 auto;">
-        <div class="panel-header">Itens</div>
-        <div class="panel-body" style="max-height:160px;">
+      <div class="panel-block" id="items-panel-block">
+        <div id="items-tabs">
+          <div class="items-tab active" id="items-tab-items" data-tab="items">Itens</div>
+          <div class="items-tab" id="items-tab-history" data-tab="history">Desfazer histórico</div>
+        </div>
+        <div id="items-panel-header">
+          <span>Itens</span>
+          <span class="items-panel-icons">
+            <span id="items-toggle-visibility-all" title="Mostrar/ocultar todos os itens">&#128065;</span>
+            <span id="items-panel-close" title="Fechar">&#10005;</span>
+          </span>
+        </div>
+        <div id="items-table-head">
+          <span class="col-eye">&#128065;</span>
+          <span class="col-lock">&#128274;</span>
+          <span class="col-item">Item</span>
+        </div>
+        <div id="items-list-wrap">
           <ul id="items-list"></ul>
         </div>
       </div>
@@ -369,10 +597,34 @@
 </div>
 
 <div id="toast"></div>
+<div id="node-draw-hint">Clique para adicionar nós. Clique com o botão direito (ou duplo clique) para terminar.</div>
+<input type="file" id="image-file-input" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml" style="display:none;">
+<div id="north-arrow-picker" style="display:none; position:fixed; z-index:6000; background:#fff; border:1px solid var(--panel-border); border-radius:4px; box-shadow:0 4px 18px rgba(0,0,0,0.3); padding:10px;">
+  <div style="font-weight:600; margin-bottom:8px;">Escolher seta norte</div>
+  <div id="north-arrow-options" style="display:grid; grid-template-columns:repeat(4, 46px); gap:8px;"></div>
+</div>
+<div id="shape-kind-picker" style="display:none; position:fixed; z-index:6000; background:#fff; border:1px solid var(--panel-border); border-radius:4px; box-shadow:0 4px 18px rgba(0,0,0,0.3); padding:6px;">
+  <button class="tool-btn" data-shape="rectangle" title="Retângulo" style="background-image:url('icons/mActionAddBasicRectangle.svg')"></button>
+  <button class="tool-btn" data-shape="ellipse" title="Elipse" style="background-image:url('icons/mActionAddBasicCircle.svg')"></button>
+  <button class="tool-btn" data-shape="triangle" title="Triângulo" style="background-image:url('icons/mActionAddBasicShape.svg')"></button>
+</div>
+<div id="node-kind-picker" style="display:none; position:fixed; z-index:6000; background:#fff; border:1px solid var(--panel-border); border-radius:4px; box-shadow:0 4px 18px rgba(0,0,0,0.3); padding:6px;">
+  <button class="tool-btn" data-kind="polygon" title="Polígono" style="background-image:url('icons/mActionAddPolygon.svg')"></button>
+  <button class="tool-btn" data-kind="polyline" title="Polilinha" style="background-image:url('icons/mLayoutItemPolyline.svg')"></button>
+</div>
 
 <script>
 (function () {
   'use strict';
+
+  // =====================================================================
+  // Tamanho da folha (A4 a 96dpi). Orientação padrão: PAISAGEM (largura >
+  // altura) — largura e altura trocadas em relação ao A4 retrato (793x1122).
+  // Todo o código do layout referencia estas constantes em vez de números
+  // fixos, então trocar a orientação no futuro é só inverter os dois valores.
+  // =====================================================================
+  const PAGE_WIDTH_PX = 1122;
+  const PAGE_HEIGHT_PX = 793;
 
   // =====================================================================
   // Recepção do estado do mapa principal — canal ESTRITAMENTE unidirecional.
@@ -441,6 +693,7 @@
   };
 
   const pageEl = document.getElementById('page');
+  const pageWrapperEl = document.getElementById('page-wrapper');
   const itemsListEl = document.getElementById('items-list');
   const itemPropsBody = document.getElementById('item-props-body');
   const itemCountInfo = document.getElementById('item-count-info');
@@ -483,11 +736,61 @@
     selectItem(item.id);
   }
 
+  function addImageItem(x, y, w, h) {
+    const item = { id: genId(), type: 'image', x, y, w, h, src: null };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+    return item;
+  }
+
+  function addNorthArrowItem(x, y, w, h) {
+    const item = { id: genId(), type: 'northarrow', x, y, w, h, style: 'classic' };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+  }
+
+  function addShapeItem(x, y, w, h, shape) {
+    const item = { id: genId(), type: 'shape', x, y, w, h, shape: shape || 'rectangle', fill: '#ffffff', stroke: '#000000' };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+  }
+
+  function addMarkerItem(x, y) {
+    // Item de marcador: tamanho fixo (é controlado pelo símbolo, como no QGIS real)
+    const w = 24, h = 24;
+    const item = { id: genId(), type: 'marker', x: x - w / 2, y: y - h / 2, w, h, fill: '#ff0000', stroke: '#000000' };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+  }
+
+  // ---- Item de forma nodal (polígono/polilinha) — criado por cliques sucessivos ----
+  function addNodeShapeItem(nodes, kind) {
+    const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
+    const minX = Math.min(...xs), minY = Math.min(...ys);
+    const maxX = Math.max(...xs), maxY = Math.max(...ys);
+    const w = Math.max(20, maxX - minX), h = Math.max(20, maxY - minY);
+    // nós armazenados relativos ao item (0..1 do w/h) pra sobreviver a redimensionamentos
+    const relNodes = nodes.map(n => ({ x: (n.x - minX) / w, y: (n.y - minY) / h }));
+    const item = {
+      id: genId(), type: 'nodeshape', kind: kind || 'polygon',
+      x: minX, y: minY, w, h, nodes: relNodes,
+      fill: '#3388cc', fillOpacity: 0.35, stroke: '#232323',
+    };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
+  }
+
   function getItem(id) { return layoutState.items.find(i => i.id === id); }
 
   function selectItem(id) {
     layoutState.selectedId = id;
     renderAll();
+    if (typeof syncMapInteractivityWithTool === 'function') syncMapInteractivityWithTool();
   }
 
   function deleteItem(id) {
@@ -502,39 +805,252 @@
     if ((e.key === 'Delete' || e.key === 'Backspace') && layoutState.selectedId) {
       const tag = (document.activeElement && document.activeElement.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const selItem = getItem(layoutState.selectedId);
+      if (selItem && selItem.locked) { toast('Item bloqueado. Desbloqueie-o para removê-lo.', 2200); return; }
       e.preventDefault();
       deleteItem(layoutState.selectedId);
     }
   });
 
   // ---- Ferramentas: modo ativo (o que acontece ao desenhar um retângulo na página) ----
-  let activeTool = 'select'; // 'select' | 'add-map' | 'add-legend' | 'add-scalebar' | 'add-label'
+  let activeTool = 'select';
   const toolButtons = {
+    pan: document.getElementById('tool-pan'),
+    'zoom-area': document.getElementById('tool-zoom-area'),
     select: document.getElementById('tool-select'),
+    'move-content': document.getElementById('tool-move-content'),
+    'edit-nodes': document.getElementById('tool-edit-nodes'),
     'add-map': document.getElementById('tool-add-map'),
+    'add-image': document.getElementById('tool-add-image'),
+    'add-label': document.getElementById('tool-add-label'),
     'add-legend': document.getElementById('tool-add-legend'),
     'add-scalebar': document.getElementById('tool-add-scalebar'),
-    'add-label': document.getElementById('tool-add-label'),
+    'add-north-arrow': document.getElementById('tool-add-north-arrow'),
+    'add-shape': document.getElementById('tool-add-shape'),
+    'add-marker': document.getElementById('tool-add-marker'),
+    'add-arrow': document.getElementById('tool-add-arrow'),
+    'add-node-shape': document.getElementById('tool-add-node-shape'),
   };
+  const canvasScrollEl = document.getElementById('canvas-scroll');
+
+  // Estado usado por setActiveTool() ao trocar de ferramenta (declarado aqui,
+  // antes da primeira chamada a setActiveTool, para evitar erro de "temporal
+  // dead zone" — as funções que de fato manipulam esse estado ficam mais
+  // abaixo, junto da lógica de cada ferramenta).
+  let nodeDrawState = null; // { points: [{x,y}], kind }
+  let editingNodeState = null; // { itemId, nodeIndex }
+  let pendingShapeKind = 'rectangle';
+  let pendingNodeShapeKind = 'polygon';
+
+  // Ferramentas que criam um item novo desenhando/clicando na página: usam
+  // o cursor "+" (crosshair), igual ao padrão do QGIS para modos de desenho.
+  const CROSSHAIR_TOOLS = new Set([
+    'add-map', 'add-image', 'add-label', 'add-legend', 'add-scalebar',
+    'add-north-arrow', 'add-shape', 'add-marker', 'add-arrow', 'add-node-shape',
+  ]);
+
   function setActiveTool(tool) {
+    // Sair do modo anterior sempre que trocar de ferramenta
+    stopNodeDrawing();
+    stopNodeEditing();
+    canvasScrollEl.classList.remove('pan-cursor', 'zoom-cursor', 'crosshair-cursor', 'panning');
     activeTool = tool;
     Object.entries(toolButtons).forEach(([key, btn]) => btn.classList.toggle('active', key === tool));
+    if (tool === 'pan') canvasScrollEl.classList.add('pan-cursor');
+    if (tool === 'zoom-area') canvasScrollEl.classList.add('zoom-cursor');
+    if (CROSSHAIR_TOOLS.has(tool)) canvasScrollEl.classList.add('crosshair-cursor');
+    if (tool === 'edit-nodes') renderPageItems(); // garante que handles de nó apareçam se já houver seleção
+    if (tool !== 'edit-nodes') removeNodeHandles();
+    syncMapInteractivityWithTool();
+    if (tool === 'move-content' && (!layoutState.selectedId || (getItem(layoutState.selectedId) || {}).type !== 'map')) {
+      toast('Selecione um item de mapa com a ferramenta "Selecionar/mover item" antes de mover o conteúdo dele.', 3400);
+    }
   }
-  setActiveTool('select');
-  toolButtons.select.addEventListener('click', () => setActiveTool('select'));
-  toolButtons['add-map'].addEventListener('click', () => setActiveTool('add-map'));
-  toolButtons['add-legend'].addEventListener('click', () => setActiveTool('add-legend'));
-  toolButtons['add-scalebar'].addEventListener('click', () => setActiveTool('add-scalebar'));
-  toolButtons['add-label'].addEventListener('click', () => setActiveTool('add-label'));
+  // A ativação inicial da ferramenta "select" e a ligação dos cliques dos
+  // botões só acontecem no final do script (ver bloco "Inicialização da UI"),
+  // depois que todas as funções auxiliares (stopNodeDrawing, syncMapInteractivityWithTool
+  // etc.) já foram declaradas — evita erros de "temporal dead zone".
+
+  // =====================================================================
+  // Ferramenta 1 — Deslocar layout (mão): arrasta o scroll do canvas,
+  // igual à ferramenta "Pan" do mapa principal — não altera nenhum item,
+  // só rola a área visível da folha.
+  //
+  // A mesma lógica de arrastar o scroll é reaproveitada pela ferramenta 4
+  // ("Mover conteúdo do item") quando o clique começa fora do mapa
+  // selecionado — nesse caso ela se comporta exatamente como a ferramenta 1.
+  // =====================================================================
+  let pageScrollDragging = null; // { startX, startY, startScrollLeft, startScrollTop }
+  function startPageScrollDrag(e) {
+    pageScrollDragging = {
+      startX: e.clientX, startY: e.clientY,
+      startScrollLeft: canvasScrollEl.scrollLeft, startScrollTop: canvasScrollEl.scrollTop,
+    };
+    canvasScrollEl.classList.add('panning');
+    e.preventDefault();
+  }
+  window.addEventListener('mousemove', (e) => {
+    if (!pageScrollDragging) return;
+    canvasScrollEl.scrollLeft = pageScrollDragging.startScrollLeft - (e.clientX - pageScrollDragging.startX);
+    canvasScrollEl.scrollTop = pageScrollDragging.startScrollTop - (e.clientY - pageScrollDragging.startY);
+  });
+  window.addEventListener('mouseup', () => {
+    if (!pageScrollDragging) return;
+    pageScrollDragging = null;
+    canvasScrollEl.classList.remove('panning');
+  });
+  (function setupPanTool() {
+    canvasScrollEl.addEventListener('mousedown', (e) => {
+      if (activeTool !== 'pan') return;
+      startPageScrollDrag(e);
+    });
+  })();
+
+  // =====================================================================
+  // Ferramenta 2 — Zoom: clique simples dá zoom (in normal / out com Ctrl,
+  // como no QGIS) centrado no ponto clicado; arrastar dá zoom na área
+  // marcada. Implementado com um zoom CSS sobre a página (#page), então
+  // afeta a visualização da folha inteira, não o conteúdo dos itens.
+  // =====================================================================
+  let pageZoom = 1;
+  const MIN_PAGE_ZOOM = 0.15, MAX_PAGE_ZOOM = 8;
+  function applyPageZoom() {
+    pageEl.style.transformOrigin = 'top left';
+    pageEl.style.transform = 'scale(' + pageZoom + ')';
+    // Como a página fica maior/menor visualmente mas o layout (#canvas-scroll)
+    // ainda reserva espaço pelo tamanho real, ajustamos um "spacer" via padding
+    // do wrapper para o scroll funcionar corretamente com o novo tamanho.
+    const w = PAGE_WIDTH_PX * pageZoom, h = PAGE_HEIGHT_PX * pageZoom;
+    pageWrapperEl.style.width = w + 'px';
+    pageWrapperEl.style.height = h + 'px';
+  }
+  function zoomAround(clientX, clientY, factor) {
+    const rect = pageEl.getBoundingClientRect();
+    // Ponto do mundo (coords não escaladas da página) sob o cursor, antes do zoom
+    const worldX = (clientX - rect.left) / pageZoom;
+    const worldY = (clientY - rect.top) / pageZoom;
+    pageZoom = Math.min(MAX_PAGE_ZOOM, Math.max(MIN_PAGE_ZOOM, pageZoom * factor));
+    applyPageZoom();
+    // Depois de escalar, recalcula onde o mesmo ponto do mundo caiu e ajusta o
+    // scroll pra mantê-lo sob o cursor (zoom "centrado no clique").
+    const rect2 = pageEl.getBoundingClientRect();
+    const newScreenX = rect2.left + worldX * pageZoom;
+    const newScreenY = rect2.top + worldY * pageZoom;
+    canvasScrollEl.scrollLeft += (newScreenX - clientX);
+    canvasScrollEl.scrollTop += (newScreenY - clientY);
+  }
+  (function setupZoomTool() {
+    let dragBox = null; // { startX, startY(client), ghostEl }
+    canvasScrollEl.addEventListener('mousedown', (e) => {
+      if (activeTool !== 'zoom-area') return;
+      dragBox = { startClientX: e.clientX, startClientY: e.clientY, moved: false, ghostEl: null };
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragBox) return;
+      const dx = e.clientX - dragBox.startClientX, dy = e.clientY - dragBox.startClientY;
+      if (!dragBox.moved && Math.hypot(dx, dy) > 4) {
+        dragBox.moved = true;
+        const ghost = document.createElement('div');
+        ghost.style.position = 'fixed';
+        ghost.style.border = '1px dashed #3388cc';
+        ghost.style.background = 'rgba(51,136,204,0.15)';
+        ghost.style.zIndex = 4000;
+        ghost.style.pointerEvents = 'none';
+        document.body.appendChild(ghost);
+        dragBox.ghostEl = ghost;
+      }
+      if (dragBox.moved) {
+        const x = Math.min(dragBox.startClientX, e.clientX), y = Math.min(dragBox.startClientY, e.clientY);
+        const w = Math.abs(dx), h = Math.abs(dy);
+        Object.assign(dragBox.ghostEl.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+      }
+    });
+    window.addEventListener('mouseup', (e) => {
+      if (!dragBox) return;
+      const wasDrag = dragBox.moved;
+      const box = dragBox.moved ? {
+        x1: Math.min(dragBox.startClientX, e.clientX), y1: Math.min(dragBox.startClientY, e.clientY),
+        x2: Math.max(dragBox.startClientX, e.clientX), y2: Math.max(dragBox.startClientY, e.clientY),
+      } : null;
+      if (dragBox.ghostEl) dragBox.ghostEl.remove();
+      dragBox = null;
+      if (activeTool !== 'zoom-area') return;
+
+      if (wasDrag && box && (box.x2 - box.x1) > 6 && (box.y2 - box.y1) > 6) {
+        // Zoom para a área marcada: escala para que a caixa preencha o viewport visível.
+        const viewportRect = canvasScrollEl.getBoundingClientRect();
+        const scaleX = viewportRect.width / (box.x2 - box.x1);
+        const scaleY = viewportRect.height / (box.y2 - box.y1);
+        const factor = Math.min(scaleX, scaleY);
+        const centerX = (box.x1 + box.x2) / 2, centerY = (box.y1 + box.y2) / 2;
+        zoomAround(centerX, centerY, factor);
+      } else {
+        // Clique simples: zoom in (Ctrl/botão direito = zoom out), centrado no clique
+        const factor = (e.button === 2 || e.ctrlKey || e.metaKey) ? (1 / 1.5) : 1.5;
+        zoomAround(e.clientX, e.clientY, factor);
+      }
+    });
+    // Botão direito também dá zoom out sem precisar de Ctrl (padrão QGIS)
+    canvasScrollEl.addEventListener('contextmenu', (e) => {
+      if (activeTool === 'zoom-area') e.preventDefault();
+    });
+  })();
+
+  // =====================================================================
+  // Zoom com a roda do mouse na folha: funciona em QUALQUER ferramenta,
+  // exceto quando estamos com a ferramenta 4 ("Mover conteúdo do item")
+  // e um item de mapa está selecionado — nesse caso a roda deve continuar
+  // controlando o zoom de dentro do mapa (comportamento nativo do Leaflet),
+  // não o zoom da folha inteira.
+  // =====================================================================
+  canvasScrollEl.addEventListener('wheel', (e) => {
+    const selected = getItem(layoutState.selectedId);
+    const contentModeOnMap = activeTool === 'move-content' && selected && selected.type === 'map';
+    if (contentModeOnMap) return; // deixa o Leaflet cuidar do próprio zoom
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.2 : (1 / 1.2);
+    zoomAround(e.clientX, e.clientY, factor);
+  }, { passive: false });
+
+  // Ferramentas que criam itens desenhando um retângulo (clique = tamanho padrão, arrastar = tamanho customizado)
+  const RECT_DRAW_TOOLS = new Set(['add-map', 'add-legend', 'add-scalebar', 'add-label', 'add-image', 'add-north-arrow', 'add-shape']);
+  // Ferramentas que criam formas por clique único (marcador) ou por sequência de clique (nós)
+  const CLICK_ONLY_TOOLS = new Set(['add-marker']);
+  const NODE_DRAW_TOOLS = new Set(['add-node-shape']);
+  // add-arrow também usa arrastar (ponto inicial -> ponto final), tratado à parte abaixo
 
   // ---- Desenhar um retângulo na página pra criar um item (arrastar com o mouse) ----
   let drawing = null; // { startX, startY, ghostEl }
   pageEl.addEventListener('mousedown', (e) => {
-    if (activeTool === 'select') return;
     if (e.target !== pageEl) return; // clique já foi num item existente
+    // Ferramenta 4 ("Mover conteúdo do item"): clicar fora de qualquer item
+    // (ou seja, no fundo vazio da folha) se comporta exatamente como a
+    // ferramenta "Deslocar layout" — desloca a página, não mexe em nada
+    // dentro do mapa selecionado.
+    if (activeTool === 'move-content') {
+      startPageScrollDrag(e);
+      return;
+    }
     const rect = pageEl.getBoundingClientRect();
-    const startX = e.clientX - rect.left;
-    const startY = e.clientY - rect.top;
+    const startX = (e.clientX - rect.left) / pageZoom;
+    const startY = (e.clientY - rect.top) / pageZoom;
+
+    if (CLICK_ONLY_TOOLS.has(activeTool)) {
+      if (activeTool === 'add-marker') addMarkerItem(startX, startY);
+      setActiveTool('select');
+      return;
+    }
+    if (NODE_DRAW_TOOLS.has(activeTool)) {
+      handleNodeDrawClick(startX, startY, e);
+      return;
+    }
+    if (activeTool === 'add-arrow') {
+      startArrowDrawing(startX, startY);
+      return;
+    }
+    if (!RECT_DRAW_TOOLS.has(activeTool)) return;
+
     const ghost = document.createElement('div');
     ghost.style.position = 'absolute';
     ghost.style.border = '1px dashed #3388cc';
@@ -547,8 +1063,8 @@
   window.addEventListener('mousemove', (e) => {
     if (!drawing) return;
     const rect = pageEl.getBoundingClientRect();
-    const curX = e.clientX - rect.left;
-    const curY = e.clientY - rect.top;
+    const curX = (e.clientX - rect.left) / pageZoom;
+    const curY = (e.clientY - rect.top) / pageZoom;
     const x = Math.min(drawing.startX, curX), y = Math.min(drawing.startY, curY);
     const w = Math.abs(curX - drawing.startX), h = Math.abs(curY - drawing.startY);
     Object.assign(drawing.ghostEl.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
@@ -556,8 +1072,8 @@
   window.addEventListener('mouseup', (e) => {
     if (!drawing) return;
     const rect = pageEl.getBoundingClientRect();
-    const curX = e.clientX - rect.left;
-    const curY = e.clientY - rect.top;
+    const curX = (e.clientX - rect.left) / pageZoom;
+    const curY = (e.clientY - rect.top) / pageZoom;
     const x = Math.min(drawing.startX, curX), y = Math.min(drawing.startY, curY);
     let w = Math.abs(curX - drawing.startX), h = Math.abs(curY - drawing.startY);
     drawing.ghostEl.remove();
@@ -567,7 +1083,204 @@
     else if (activeTool === 'add-legend') addLegendItem(x, y, w, h);
     else if (activeTool === 'add-scalebar') addScalebarItem(x, y, w, h);
     else if (activeTool === 'add-label') addLabelItem(x, y, w, h);
+    else if (activeTool === 'add-image') { addImageItem(x, y, w, h); pendingImageItemId = layoutState.selectedId; imageFileInput.click(); }
+    else if (activeTool === 'add-north-arrow') openNorthArrowPicker(x, y, w, h);
+    else if (activeTool === 'add-shape') addShapeItem(x, y, w, h, pendingShapeKind || 'rectangle');
+    if (activeTool !== 'add-north-arrow') setActiveTool('select');
+  });
+
+  // ---- Ferramenta "Adicionar seta" (arrastar de um ponto a outro) ----
+  let arrowDrawing = null;
+  function startArrowDrawing(startX, startY) {
+    const ghost = document.createElement('div');
+    ghost.style.position = 'absolute';
+    ghost.style.left = '0'; ghost.style.top = '0';
+    ghost.style.width = '100%'; ghost.style.height = '100%';
+    ghost.style.pointerEvents = 'none';
+    ghost.innerHTML = '<svg width="100%" height="100%" style="position:absolute; inset:0; overflow:visible;"><line id="arrow-ghost-line" x1="' + startX + '" y1="' + startY + '" x2="' + startX + '" y2="' + startY + '" stroke="#3388cc" stroke-width="2" stroke-dasharray="4,3"/></svg>';
+    pageEl.appendChild(ghost);
+    arrowDrawing = { startX, startY, ghostEl: ghost };
+  }
+  window.addEventListener('mousemove', (e) => {
+    if (!arrowDrawing) return;
+    const rect = pageEl.getBoundingClientRect();
+    const curX = (e.clientX - rect.left) / pageZoom;
+    const curY = (e.clientY - rect.top) / pageZoom;
+    const line = arrowDrawing.ghostEl.querySelector('#arrow-ghost-line');
+    line.setAttribute('x2', curX); line.setAttribute('y2', curY);
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (!arrowDrawing) return;
+    const rect = pageEl.getBoundingClientRect();
+    const curX = (e.clientX - rect.left) / pageZoom;
+    const curY = (e.clientY - rect.top) / pageZoom;
+    arrowDrawing.ghostEl.remove();
+    const { startX, startY } = arrowDrawing;
+    arrowDrawing = null;
+    if (activeTool !== 'add-arrow') return;
+    let x1 = startX, y1 = startY, x2 = curX, y2 = curY;
+    if (Math.hypot(x2 - x1, y2 - y1) < 15) { x2 = x1 + 120; y2 = y1; } // clique simples: seta padrão
+    const minX = Math.min(x1, x2), minY = Math.min(y1, y2);
+    const w = Math.max(20, Math.abs(x2 - x1)), h = Math.max(20, Math.abs(y2 - y1));
+    const item = { id: genId(), type: 'arrow', x: minX, y: minY, w, h, stroke: '#000000',
+      relStart: { x: (x1 - minX) / w, y: (y1 - minY) / h }, relEnd: { x: (x2 - minX) / w, y: (y2 - minY) / h } };
+    layoutState.items.push(item);
+    renderAll();
+    selectItem(item.id);
     setActiveTool('select');
+  });
+
+  // =====================================================================
+  // Ferramenta "Adicionar polígono/polilinha" (nós por clique) + escolha
+  // de forma para a ferramenta "Adicionar forma" + seleção de seta norte.
+  // =====================================================================
+  const nodeDrawHintEl = document.getElementById('node-draw-hint');
+
+  function handleNodeDrawClick(x, y, e) {
+    if (!nodeDrawState) {
+      nodeDrawState = { points: [{ x, y }], kind: pendingNodeShapeKind || 'polygon' };
+      nodeDrawHintEl.classList.add('show');
+      return;
+    }
+    nodeDrawState.points.push({ x, y });
+  }
+  // Duplo clique ou botão direito termina o desenho do polígono/polilinha
+  pageEl.addEventListener('dblclick', (e) => {
+    if (activeTool === 'add-node-shape' && nodeDrawState) finishNodeDrawing();
+  });
+  pageEl.addEventListener('contextmenu', (e) => {
+    if (activeTool === 'add-node-shape' && nodeDrawState) { e.preventDefault(); finishNodeDrawing(); }
+  });
+  function finishNodeDrawing() {
+    if (nodeDrawState && nodeDrawState.points.length >= 2) {
+      addNodeShapeItem(nodeDrawState.points, nodeDrawState.kind);
+    }
+    stopNodeDrawing();
+    setActiveTool('select');
+  }
+  function stopNodeDrawing() {
+    nodeDrawState = null;
+    nodeDrawHintEl.classList.remove('show');
+    const ghost = document.getElementById('node-draw-ghost');
+    if (ghost) ghost.remove();
+  }
+  // Pré-visualização do polígono/polilinha sendo desenhado
+  window.addEventListener('mousemove', (e) => {
+    if (!nodeDrawState) return;
+    const rect = pageEl.getBoundingClientRect();
+    const curX = (e.clientX - rect.left) / pageZoom;
+    const curY = (e.clientY - rect.top) / pageZoom;
+    let ghost = document.getElementById('node-draw-ghost');
+    if (!ghost) {
+      ghost = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      ghost.id = 'node-draw-ghost';
+      ghost.style.position = 'absolute'; ghost.style.inset = '0'; ghost.style.width = '100%'; ghost.style.height = '100%';
+      ghost.style.pointerEvents = 'none'; ghost.style.overflow = 'visible';
+      pageEl.appendChild(ghost);
+    }
+    const allPts = nodeDrawState.points.concat([{ x: curX, y: curY }]);
+    const pointsAttr = allPts.map(p => p.x + ',' + p.y).join(' ');
+    const closed = nodeDrawState.kind === 'polygon';
+    ghost.innerHTML = '<' + (closed ? 'polygon' : 'polyline') + ' points="' + pointsAttr + '" fill="' +
+      (closed ? 'rgba(51,136,204,0.15)' : 'none') + '" stroke="#3388cc" stroke-width="1.5" stroke-dasharray="4,3"/>' +
+      nodeDrawState.points.map(p => '<circle cx="' + p.x + '" cy="' + p.y + '" r="3" fill="#3388cc"/>').join('');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && nodeDrawState) { stopNodeDrawing(); }
+  });
+
+  // ---- Forma pendente escolhida no dropdown da ferramenta "Adicionar forma" ----
+  // (variáveis já declaradas mais acima, junto do restante do estado usado por setActiveTool)
+
+  function setupSubToolPicker(buttonId, pickerId, dataAttr, onPick) {
+    const btn = document.getElementById(buttonId);
+    const picker = document.getElementById(pickerId);
+    btn.addEventListener('click', (e) => {
+      const rect = btn.getBoundingClientRect();
+      picker.style.left = (rect.right + 4) + 'px';
+      picker.style.top = rect.top + 'px';
+      picker.style.display = picker.style.display === 'block' ? 'none' : 'block';
+      e.stopPropagation();
+    });
+    picker.querySelectorAll('button').forEach(optBtn => {
+      optBtn.addEventListener('click', () => {
+        onPick(optBtn.dataset[dataAttr]);
+        picker.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        optBtn.classList.add('active');
+        picker.style.display = 'none';
+      });
+    });
+    document.addEventListener('mousedown', (e) => {
+      if (picker.style.display === 'block' && !picker.contains(e.target) && e.target !== btn) {
+        picker.style.display = 'none';
+      }
+    });
+  }
+  setupSubToolPicker('tool-add-shape', 'shape-kind-picker', 'shape', (kind) => { pendingShapeKind = kind; });
+  setupSubToolPicker('tool-add-node-shape', 'node-kind-picker', 'kind', (kind) => { pendingNodeShapeKind = kind; });
+
+  // =====================================================================
+  // Item 12 — Seletor de seta norte (SVGs no estilo das setas norte do QGIS,
+  // ver images/north_arrows/ no repositório oficial do QGIS)
+  // =====================================================================
+  const NORTH_ARROW_STYLES = {
+    classic: '<svg viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg"><path d="M20 2 L34 44 L20 34 L6 44 Z" fill="#1e1e1e" stroke="#1e1e1e" stroke-width="1"/><path d="M20 2 L20 34" stroke="#fff" stroke-width="1"/><text x="20" y="14" text-anchor="middle" font-size="9" font-family="Arial" fill="#fff" font-weight="bold"></text></svg>',
+    fancy: '<svg viewBox="0 0 40 60" xmlns="http://www.w3.org/2000/svg"><path d="M20 0 L26 30 L20 24 L14 30 Z" fill="#1e1e1e"/><path d="M20 24 L26 30 L20 60 L14 30 Z" fill="#fff" stroke="#1e1e1e" stroke-width="1"/><text x="20" y="14" text-anchor="middle" font-size="10" font-family="Georgia, serif" fill="#1e1e1e" font-weight="bold">N</text></svg>',
+    simple: '<svg viewBox="0 0 30 50" xmlns="http://www.w3.org/2000/svg"><line x1="15" y1="48" x2="15" y2="4" stroke="#1e1e1e" stroke-width="2"/><path d="M15 0 L21 12 L15 8 L9 12 Z" fill="#1e1e1e"/></svg>',
+    compass: '<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><circle cx="25" cy="25" r="22" fill="none" stroke="#1e1e1e" stroke-width="1.2"/><path d="M25 5 L30 25 L25 21 L20 25 Z" fill="#1e1e1e"/><path d="M25 45 L20 25 L25 29 L30 25 Z" fill="#fff" stroke="#1e1e1e" stroke-width="1"/><text x="25" y="12" text-anchor="middle" font-size="8" font-family="Arial" fill="#1e1e1e" font-weight="bold">N</text></svg>',
+  };
+  let pendingNorthArrowRect = null;
+  const northArrowPickerEl = document.getElementById('north-arrow-picker');
+  const northArrowOptionsEl = document.getElementById('north-arrow-options');
+  Object.entries(NORTH_ARROW_STYLES).forEach(([key, svg]) => {
+    const div = document.createElement('div');
+    div.className = 'northarrow-swatch';
+    div.innerHTML = svg;
+    div.title = key;
+    div.addEventListener('click', () => {
+      if (pendingNorthArrowRect) {
+        const { x, y, w, h } = pendingNorthArrowRect;
+        addNorthArrowItem(x, y, w, h);
+        const item = getItem(layoutState.selectedId);
+        if (item) { item.style = key; }
+        renderPageItems();
+      }
+      northArrowPickerEl.style.display = 'none';
+      setActiveTool('select');
+    });
+    northArrowOptionsEl.appendChild(div);
+  });
+  function openNorthArrowPicker(x, y, w, h) {
+    pendingNorthArrowRect = { x, y, w: Math.max(w, 40), h: Math.max(h, 50) };
+    const rect = canvasScrollEl.getBoundingClientRect();
+    northArrowPickerEl.style.left = Math.min(window.innerWidth - 220, rect.left + 60) + 'px';
+    northArrowPickerEl.style.top = Math.min(window.innerHeight - 140, rect.top + 60) + 'px';
+    northArrowPickerEl.style.display = 'block';
+  }
+  document.addEventListener('mousedown', (e) => {
+    if (northArrowPickerEl.style.display === 'block' && !northArrowPickerEl.contains(e.target)) {
+      northArrowPickerEl.style.display = 'none';
+      if (activeTool === 'add-north-arrow') setActiveTool('select');
+    }
+  });
+
+  // =====================================================================
+  // Item 8 — Adicionar imagem: abre o seletor de arquivos do sistema
+  // =====================================================================
+  const imageFileInput = document.getElementById('image-file-input');
+  let pendingImageItemId = null;
+  imageFileInput.addEventListener('change', () => {
+    const file = imageFileInput.files && imageFileInput.files[0];
+    imageFileInput.value = '';
+    const item = getItem(pendingImageItemId);
+    pendingImageItemId = null;
+    if (!file || !item) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      item.src = reader.result;
+      renderPageItems();
+    };
+    reader.readAsDataURL(file);
   });
 
   // ---- Renderização geral ----
@@ -579,8 +1292,45 @@
   }
 
   function itemLabel(item) {
-    const names = { map: 'Mapa', legend: 'Legenda', scalebar: 'Escala', label: 'Rótulo' };
+    const names = {
+      map: 'Mapa', legend: 'Legenda', scalebar: 'Escala', label: 'Rótulo',
+      image: 'Imagem', northarrow: 'Seta norte', shape: 'Forma', marker: 'Marcador',
+      arrow: 'Seta', nodeshape: item.kind === 'polyline' ? 'Polilinha' : 'Polígono',
+    };
     return (names[item.type] || item.type) + ' ' + item.id.replace('li', '');
+  }
+
+  // Ícone (mini-SVG) exibido na coluna "Item" do painel, um por tipo,
+  // seguindo o mesmo estilo simplificado usado pelo QGIS no painel de itens.
+  function itemIconSvg(item) {
+    const stroke = '#5a5a5a';
+    switch (item.type) {
+      case 'scalebar':
+        return '<svg viewBox="0 0 16 16"><g fill="none" stroke="' + stroke + '" stroke-width="1.3"><path d="M1 11h14M1 8v3M5.5 8v3M10 8v3M14.5 8v3"/></g></svg>';
+      case 'legend':
+        return '<svg viewBox="0 0 16 16"><g fill="none" stroke="' + stroke + '" stroke-width="1.2"><rect x="1.5" y="2" width="3" height="3"/><rect x="1.5" y="6.5" width="3" height="3"/><rect x="1.5" y="11" width="3" height="3"/></g>' +
+          '<g stroke="' + stroke + '" stroke-width="1.1"><line x1="6.5" y1="3.5" x2="14.5" y2="3.5"/><line x1="6.5" y1="8" x2="14.5" y2="8"/><line x1="6.5" y1="12.5" x2="13" y2="12.5"/></g></svg>';
+      case 'northarrow':
+        return '<svg viewBox="0 0 16 16"><g fill="' + stroke + '"><polygon points="8,1.5 11,14.5 8,11.5 5,14.5"/></g></svg>';
+      case 'map':
+        return '<svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" fill="#d9d9d9" stroke="' + stroke + '" stroke-width="1.2"/></svg>';
+      case 'label':
+        return '<svg viewBox="0 0 16 16"><text x="1" y="12.5" font-size="12" font-weight="700" fill="' + stroke + '" font-family="Georgia, serif">T</text></svg>';
+      case 'image':
+        return '<svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" fill="none" stroke="' + stroke + '" stroke-width="1.2"/><circle cx="5" cy="6" r="1.3" fill="' + stroke + '"/><polyline points="2,12.5 6,8.5 9,11 11.5,8 14.5,12" fill="none" stroke="' + stroke + '" stroke-width="1.2"/></svg>';
+      case 'shape':
+        return '<svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" fill="none" stroke="' + stroke + '" stroke-width="1.3"/></svg>';
+      case 'marker':
+        return '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" fill="none" stroke="' + stroke + '" stroke-width="1.3"/></svg>';
+      case 'arrow':
+        return '<svg viewBox="0 0 16 16"><g stroke="' + stroke + '" stroke-width="1.3" fill="none"><line x1="2" y1="13" x2="13" y2="3"/><polyline points="8,3 13,3 13,8"/></g></svg>';
+      case 'nodeshape':
+        return item.kind === 'polyline'
+          ? '<svg viewBox="0 0 16 16"><polyline points="2,13 6,5 10,10 14,3" fill="none" stroke="' + stroke + '" stroke-width="1.3"/></svg>'
+          : '<svg viewBox="0 0 16 16"><polygon points="8,2 14,6 12,14 4,14 2,6" fill="none" stroke="' + stroke + '" stroke-width="1.3"/></svg>';
+      default:
+        return '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="' + stroke + '" stroke-width="1.2"/></svg>';
+    }
   }
 
   function renderPageItems() {
@@ -606,6 +1356,31 @@
       el.style.width = item.w + 'px';
       el.style.height = item.h + 'px';
       el.classList.toggle('selected', layoutState.selectedId === item.id);
+      // Reaplica visibilidade/bloqueio a cada render, garantindo consistência
+      // mesmo quando o elemento é recriado do zero.
+      if (item.visible === undefined) item.visible = true;
+      if (item.locked === undefined) item.locked = false;
+      el.style.display = item.visible ? '' : 'none';
+      el.style.pointerEvents = item.locked ? 'none' : '';
+      el.classList.toggle('locked-item', !!item.locked);
+      // Propriedades comuns (Rotação, Moldura, Plano de fundo, Modo de
+      // Renderização) do grupo "Propriedades comuns dos itens". Os padrões
+      // são fixados aqui (e não só ao abrir o painel de propriedades) para
+      // já valerem no primeiro desenho do item, igual ao QGIS: todo item
+      // nasce com "Plano de fundo" ativo e branco — é esse branco que cobre
+      // as partes sem forma (ex.: fora da legenda, atrás de um rótulo). Ao
+      // desmarcar essa opção nas propriedades, o item passa a mostrar a
+      // página (ou o que estiver atrás) através das áreas sem conteúdo.
+      if (item.bgEnabled === undefined) item.bgEnabled = true;
+      if (item.bgColor === undefined) item.bgColor = '#ffffff';
+      if (item.frameWidth === undefined) item.frameWidth = 0.30;
+      if (item.blendMode === undefined) item.blendMode = 'normal';
+      el.style.transform = item.rotation ? 'rotate(' + item.rotation + 'deg)' : '';
+      el.style.opacity = (item.opacity === undefined ? 100 : item.opacity) / 100;
+      const frameWidthPx = Math.max(1, Math.round((item.frameWidth || 0.3) * 3.7795275591)); // mm -> px (96dpi)
+      el.style.outline = item.frameEnabled ? frameWidthPx + 'px solid ' + (item.frameColor || '#000') : '';
+      el.style.backgroundColor = item.bgEnabled ? (item.bgColor || '#ffffff') : '';
+      el.style.mixBlendMode = (item.blendMode && item.blendMode !== 'normal') ? item.blendMode : '';
       renderItemContent(el, item);
     });
   }
@@ -623,20 +1398,196 @@
       } else {
         el.innerHTML = '<div class="resize-handle br"></div><span class="label-text-el">' + escapeHtml(item.text) + '</span>';
       }
+    } else if (item.type === 'image') {
+      renderImageContent(el, item);
+    } else if (item.type === 'northarrow') {
+      el.innerHTML = '<div class="resize-handle br"></div>' + (NORTH_ARROW_STYLES[item.style] || NORTH_ARROW_STYLES.classic);
+    } else if (item.type === 'shape') {
+      renderShapeContent(el, item);
+    } else if (item.type === 'marker') {
+      renderMarkerContent(el, item);
+    } else if (item.type === 'arrow') {
+      renderArrowContent(el, item);
+    } else if (item.type === 'nodeshape') {
+      renderNodeShapeContent(el, item);
+      if (activeTool === 'edit-nodes' && layoutState.selectedId === item.id) {
+        renderNodeHandles(el, item);
+      }
     }
   }
+
+  function renderImageContent(el, item) {
+    if (item.src) {
+      el.innerHTML = '<div class="resize-handle br"></div><img src="' + item.src + '" alt="">';
+    } else {
+      el.innerHTML = '<div class="resize-handle br"></div><div class="image-empty-msg">Sem imagem<br>(duplo clique para escolher um arquivo)</div>';
+    }
+  }
+  // Duplo clique numa imagem vazia reabre o seletor de arquivos
+  pageEl.addEventListener('dblclick', (e) => {
+    const itemEl = e.target.closest('.layout-item.image-item');
+    if (!itemEl) return;
+    const item = getItem(itemEl.dataset.id);
+    if (!item) return;
+    pendingImageItemId = item.id;
+    imageFileInput.click();
+  });
+
+  function renderShapeContent(el, item) {
+    const w = item.w, h = item.h;
+    let shapeSvg = '';
+    if (item.shape === 'ellipse') {
+      shapeSvg = '<ellipse cx="' + w / 2 + '" cy="' + h / 2 + '" rx="' + (w / 2 - 1) + '" ry="' + (h / 2 - 1) + '" fill="' + item.fill + '" stroke="' + item.stroke + '" stroke-width="1.5"/>';
+    } else if (item.shape === 'triangle') {
+      shapeSvg = '<polygon points="' + (w / 2) + ',1 ' + (w - 1) + ',' + (h - 1) + ' 1,' + (h - 1) + '" fill="' + item.fill + '" stroke="' + item.stroke + '" stroke-width="1.5"/>';
+    } else {
+      shapeSvg = '<rect x="1" y="1" width="' + (w - 2) + '" height="' + (h - 2) + '" fill="' + item.fill + '" stroke="' + item.stroke + '" stroke-width="1.5"/>';
+    }
+    el.innerHTML = '<div class="resize-handle br"></div><svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' + shapeSvg + '</svg>';
+  }
+
+  function renderMarkerContent(el, item) {
+    const w = item.w, h = item.h;
+    el.innerHTML = '<div class="resize-handle br"></div><svg viewBox="0 0 ' + w + ' ' + h + '"><circle cx="' + w / 2 + '" cy="' + h / 2 + '" r="' + (Math.min(w, h) / 2 - 2) + '" fill="' + item.fill + '" stroke="' + item.stroke + '" stroke-width="1.5"/></svg>';
+  }
+
+  function renderArrowContent(el, item) {
+    const w = item.w, h = item.h;
+    const s = item.relStart || { x: 0, y: 1 };
+    const en = item.relEnd || { x: 1, y: 0 };
+    const x1 = s.x * w, y1 = s.y * h, x2 = en.x * w, y2 = en.y * h;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const headLen = 10;
+    const hx1 = x2 - headLen * Math.cos(angle - Math.PI / 7), hy1 = y2 - headLen * Math.sin(angle - Math.PI / 7);
+    const hx2 = x2 - headLen * Math.cos(angle + Math.PI / 7), hy2 = y2 - headLen * Math.sin(angle + Math.PI / 7);
+    el.innerHTML = '<div class="resize-handle br"></div><svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="overflow:visible;">' +
+      '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + item.stroke + '" stroke-width="2"/>' +
+      '<polygon points="' + x2 + ',' + y2 + ' ' + hx1 + ',' + hy1 + ' ' + hx2 + ',' + hy2 + '" fill="' + item.stroke + '"/></svg>';
+  }
+
+  function renderNodeShapeContent(el, item) {
+    const w = item.w, h = item.h;
+    const pointsAttr = item.nodes.map(n => (n.x * w) + ',' + (n.y * h)).join(' ');
+    const closed = item.kind === 'polygon';
+    const shapeEl = closed
+      ? '<polygon points="' + pointsAttr + '" fill="' + item.fill + '" fill-opacity="' + item.fillOpacity + '" stroke="' + item.stroke + '" stroke-width="1.5"/>'
+      : '<polyline points="' + pointsAttr + '" fill="none" stroke="' + item.stroke + '" stroke-width="2"/>';
+    el.innerHTML = '<div class="resize-handle br"></div><svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="overflow:visible;">' + shapeEl + '</svg>';
+  }
+
+  // =====================================================================
+  // Ferramenta 5 — Editar nós de item: só se aplica a itens de forma nodal
+  // (polígono/polilinha, ferramenta 16). Mostra um marcador em cada nó;
+  // arrastar move o nó, duplo clique num segmento adiciona um nó, e Del
+  // remove o nó selecionado — replicando o comportamento do QGIS.
+  // (editingNodeState já declarado mais acima, junto do restante do estado usado por setActiveTool)
+  // =====================================================================
+  function removeNodeHandles() {
+    document.querySelectorAll('.node-handle').forEach(h => h.remove());
+  }
+  function stopNodeEditing() {
+    editingNodeState = null;
+    removeNodeHandles();
+  }
+  function renderNodeHandles(el, item) {
+    // Remove handles antigos deste item antes de redesenhar
+    el.querySelectorAll('.node-handle').forEach(h => h.remove());
+    if (item.type !== 'nodeshape') return;
+    item.nodes.forEach((n, idx) => {
+      const handle = document.createElement('div');
+      handle.className = 'node-handle';
+      handle.style.left = (n.x * item.w) + 'px';
+      handle.style.top = (n.y * item.h) + 'px';
+      handle.dataset.index = idx;
+      handle.addEventListener('mouseenter', () => { item._hoverNodeIndex = idx; });
+      handle.addEventListener('mouseleave', () => { if (item._hoverNodeIndex === idx) item._hoverNodeIndex = null; });
+      handle.addEventListener('mousedown', (e) => {
+        if (activeTool !== 'edit-nodes') return;
+        e.stopPropagation();
+        e.preventDefault();
+        editingNodeState = { itemId: item.id, nodeIndex: idx };
+        handle.classList.add('dragging-node');
+        const rect = pageEl.getBoundingClientRect();
+        function onMove(ev) {
+          const px = (ev.clientX - rect.left) / pageZoom;
+          const py = (ev.clientY - rect.top) / pageZoom;
+          item.nodes[idx] = { x: (px - item.x) / item.w, y: (py - item.y) / item.h };
+          renderItemContent(el, item);
+        }
+        function onUp() {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          editingNodeState = null;
+        }
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
+      el.appendChild(handle);
+    });
+  }
+  // Duplo clique num segmento (na própria forma) adiciona um nó
+  pageEl.addEventListener('dblclick', (e) => {
+    if (activeTool !== 'edit-nodes') return;
+    const itemEl = e.target.closest('.layout-item.nodeshape-item');
+    if (!itemEl) return;
+    const item = getItem(itemEl.dataset.id);
+    if (!item) return;
+    const rect = pageEl.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / pageZoom, py = (e.clientY - rect.top) / pageZoom;
+    const relX = (px - item.x) / item.w, relY = (py - item.y) / item.h;
+    // Insere o novo nó depois do segmento mais próximo (aproximação simples: mais próximo do ponto médio)
+    let bestSeg = 0, bestDist = Infinity;
+    const n = item.nodes;
+    const segCount = item.kind === 'polygon' ? n.length : n.length - 1;
+    for (let i = 0; i < segCount; i++) {
+      const a = n[i], b = n[(i + 1) % n.length];
+      const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+      const d = Math.hypot(midX - relX, midY - relY);
+      if (d < bestDist) { bestDist = d; bestSeg = i; }
+    }
+    item.nodes.splice(bestSeg + 1, 0, { x: relX, y: relY });
+    renderPageItems();
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.key !== 'Delete' && e.key !== 'Backspace') || activeTool !== 'edit-nodes') return;
+    const selEl = pageEl.querySelector('.node-handle.dragging-node');
+    // Também permite deletar o nó cujo handle está sob foco/hover mais recente:
+    // usamos o último nó arrastado (editingNodeState) OU, se nenhum, ignoramos.
+    const item = getItem(layoutState.selectedId);
+    if (!item || item.type !== 'nodeshape') return;
+    if (!item._hoverNodeIndex && item._hoverNodeIndex !== 0) return;
+    if (item.nodes.length <= 2) { toast('A forma precisa de pelo menos 2 nós.', 2400); return; }
+    item.nodes.splice(item._hoverNodeIndex, 1);
+    renderPageItems();
+  });
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   // ---- Item de Mapa: mini-Leaflet somente-leitura espelhando o mapa principal ----
+  // Atualiza o campo de Escala do painel de propriedades in-place (sem
+  // recriar o <input> via renderPropsPanel, que perderia foco/digitação em
+  // andamento). Só atualiza quando: (a) o painel de propriedades deste
+  // mesmo item está de fato aberto, e (b) o campo não está com foco — assim
+  // o zoom do mapa reflete na Escala em tempo real, mas nunca atropela o
+  // que a pessoa está digitando até ela confirmar (Enter/blur).
+  function scaleTextForZoom(zoom) {
+    return '1 : ' + Math.round(zoom ? 591657550 / Math.pow(2, zoom) : 0);
+  }
+  function updateScaleFieldIfPresent(item) {
+    if (layoutState.selectedId !== item.id) return;
+    const scaleEl = document.getElementById('prop-map-scale');
+    if (!scaleEl || document.activeElement === scaleEl) return;
+    scaleEl.value = scaleTextForZoom(item.zoom);
+  }
+
   function ensureMapLeaflet(el, item) {
     if (item.leaflet) return;
     // Container próprio dentro do item (o item em si pode ganhar borda/handle de resize)
     let mapDiv = el.querySelector('.map-leaflet-div');
     if (!mapDiv) {
-      el.innerHTML = '<div class="resize-handle br"></div><div class="map-leaflet-div" style="position:absolute; inset:0;"></div><div class="map-placeholder-msg"></div>';
+      el.innerHTML = '<div class="resize-handle br"></div><div class="map-leaflet-div"></div><div class="map-placeholder-msg"></div>';
       mapDiv = el.querySelector('.map-leaflet-div');
     }
     const map = L.map(mapDiv, {
@@ -644,15 +1595,46 @@
       zoomControl: false,
       center: item.center,
       zoom: item.zoom,
+      // zoomSnap:0 habilita zoom fracionário totalmente livre — sem isso, o
+      // Leaflet arredonda todo setZoom() para o inteiro mais próximo
+      // (comportamento padrão, zoomSnap:1), o que fazia uma escala digitada
+      // como "1:20000" ser silenciosamente trocada por algo bem diferente
+      // (ex. "1:18056") assim que o zoom era arredondado. Com escala em vez
+      // de zoom sendo o que a pessoa realmente controla aqui, o zoom
+      // PRECISA aceitar qualquer valor fracionário para bater exatamente.
+      zoomSnap: 0,
+      zoomDelta: 0.25, // granularidade dos botões +/- e teclado, coerente com o zoom livre
+      // Desativado por padrão: só a ferramenta 4 ("Mover conteúdo do item")
+      // reativa essas interações — assim a ferramenta 3 nunca move o
+      // conteúdo do mapa por engano ao arrastar o item.
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
     });
     item.leaflet = map;
     map.on('moveend', () => {
       item.center = [map.getCenter().lat, map.getCenter().lng];
       item.zoom = map.getZoom();
+      updateScaleFieldIfPresent(item);
     });
     // Re-renderiza o tamanho do canvas Leaflet quando o item é redimensionado
-    setTimeout(() => map.invalidateSize(), 0);
+    setTimeout(() => { map.invalidateSize(); applyMapRotation(item); }, 0);
     applySnapshotToMapItem(item);
+  }
+
+  // Aplica item.mapRotation (graus) ao CONTEÚDO do mapa dentro da moldura do
+  // item — gira só o .map-leaflet-div (sobre-dimensionado a 200%/-50% via
+  // CSS para cobrir os cantos expostos pela rotação), nunca o item em si.
+  // Diferente de item.rotation (que gira a moldura inteira, ver
+  // applyItemTransform), esta rotação é exclusiva de itens de mapa e emula
+  // "Rotação do mapa" do QGIS: o norte deixa de apontar para cima, mas o
+  // texto/borda do item continuam retos na página.
+  function applyMapRotation(item) {
+    if (!item.leaflet) return;
+    const mapDiv = item.leaflet.getContainer();
+    const deg = item.mapRotation || 0;
+    mapDiv.style.transform = deg ? 'rotate(' + deg + 'deg)' : '';
+    item.leaflet.invalidateSize();
   }
 
   function updatePlaceholderMessage(el) {
@@ -675,15 +1657,27 @@
     const map = item.leaflet;
     if (!item._layerGroups) item._layerGroups = new Map(); // layerId -> L.Layer
 
-    // Remove camadas que não existem mais no projeto
-    const currentIds = new Set(mapProjectState.layers.map(l => l.id));
+    // "Bloquear camadas" (item.lockLayers): congela QUAIS camadas aparecem no
+    // item — a lista deixa de seguir o que está ligado/desligado (ou
+    // adicionado/removido) no mapa principal. Isso é diferente do bloqueio no
+    // painel de Itens (item.locked), que só impede mover/selecionar a moldura
+    // no layout e não afeta em nada a sincronização de conteúdo.
+    const layersToRender = item.lockLayers
+      ? (item._lockedLayerSnapshot || (item._lockedLayerSnapshot = mapProjectState.layers.slice()))
+      : mapProjectState.layers;
+    if (!item.lockLayers) item._lockedLayerSnapshot = null; // limpa ao destravar
+
+    // Remove camadas que não existem mais na lista relevante (respeitando o
+    // congelamento acima) — quando lockLayers está ligado, currentIds vem do
+    // snapshot congelado, não do projeto ao vivo.
+    const currentIds = new Set(layersToRender.map(l => l.id));
     item._layerGroups.forEach((leafletLayer, layerId) => {
       if (!currentIds.has(layerId)) { map.removeLayer(leafletLayer); item._layerGroups.delete(layerId); }
     });
 
     // QGIS desenha a lista de camadas de cima para baixo; a última do array
     // (adicionada por último) fica no topo — replicamos essa ordem aqui.
-    mapProjectState.layers.forEach(layer => {
+    layersToRender.forEach(layer => {
       let leafletLayer = item._layerGroups.get(layer.id);
       if (layer.isBasemap) {
         // Camadas base (tiles OSM etc.) — recriamos como tile layer simples se visível.
@@ -704,13 +1698,34 @@
         return;
       }
 
-      const sym = layer.symbology || {};
-      const style = {
-        fillColor: layer.color,
-        fillOpacity: sym.fillStyle === 'none' ? 0 : ((layer.fillOpacityPct !== undefined ? layer.fillOpacityPct : 100) / 100),
-        color: sym.strokeColor || '#232323',
-        weight: sym.strokeStyle === 'none' ? 0 : Math.max(0.5, (sym.strokeWidth || 0.26) * (1 / 0.26)),
-      };
+      // "Bloquear estilos para camadas" (item.lockStyles): congela a
+      // simbologia usada no item — a cor/opacidade/contorno atual do projeto
+      // deixa de ser aplicada aqui. A geometria (addData) continua sendo
+      // atualizada normalmente, só o `style` fica fixo no que existia quando
+      // o bloqueio foi ligado (snapshot por camada, guardado no próprio item).
+      let style;
+      if (item.lockStyles) {
+        if (!item._lockedStyles) item._lockedStyles = new Map();
+        if (!item._lockedStyles.has(layer.id)) {
+          const sym = layer.symbology || {};
+          item._lockedStyles.set(layer.id, {
+            fillColor: layer.color,
+            fillOpacity: sym.fillStyle === 'none' ? 0 : ((layer.fillOpacityPct !== undefined ? layer.fillOpacityPct : 100) / 100),
+            color: sym.strokeColor || '#232323',
+            weight: sym.strokeStyle === 'none' ? 0 : Math.max(0.5, (sym.strokeWidth || 0.26) * (1 / 0.26)),
+          });
+        }
+        style = item._lockedStyles.get(layer.id);
+      } else {
+        item._lockedStyles = null; // limpa ao destravar, para recongelar do zero na próxima vez
+        const sym = layer.symbology || {};
+        style = {
+          fillColor: layer.color,
+          fillOpacity: sym.fillStyle === 'none' ? 0 : ((layer.fillOpacityPct !== undefined ? layer.fillOpacityPct : 100) / 100),
+          color: sym.strokeColor || '#232323',
+          weight: sym.strokeStyle === 'none' ? 0 : Math.max(0.5, (sym.strokeWidth || 0.26) * (1 / 0.26)),
+        };
+      }
 
       if (!leafletLayer) {
         leafletLayer = L.geoJSON(layer.geojson, {
@@ -762,18 +1777,60 @@
   }
 
   // ---- Arrastar/redimensionar itens no canvas ----
+  // =====================================================================
+  // Ferramenta 3 — Selecionar/mover item: move a "moldura" do item na
+  // página, exatamente como no QGIS — o conteúdo de dentro do item (ex.:
+  // a extensão/zoom do mapa) NUNCA se altera aqui, só a posição/tamanho
+  // do item em si. É por isso que, enquanto essa ferramenta está ativa,
+  // desligamos o dragging nativo do Leaflet (que senão capturaria o
+  // mousedown e moveria o conteúdo do mapa junto, em vez do item).
+  //
+  // Ferramenta 4 — Mover conteúdo do item: só faz sentido, e só fica
+  // disponível, com um item de mapa já selecionado (feito com a
+  // ferramenta 3). Nesse modo o item não se move nem redimensiona — em
+  // vez disso arrastar pana o mapa (igual à mão do mapa principal) e a
+  // roda do mouse dá zoom, sem afetar a página do layout.
+  // =====================================================================
   function makeItemInteractive(el, item) {
     el.addEventListener('mousedown', (e) => {
       if (activeTool !== 'select') return;
+      if (item.locked) return; // item bloqueado: não seleciona nem arrasta pelo canvas
       if (e.target.classList.contains('resize-handle')) return; // tratado abaixo
+      if (e.target.closest('.node-handle')) return; // tratado pela edição de nós
       selectItem(item.id);
       const startMouseX = e.clientX, startMouseY = e.clientY;
       const startX = item.x, startY = item.y;
       function onMove(ev) {
-        item.x = startX + (ev.clientX - startMouseX);
-        item.y = startY + (ev.clientY - startMouseY);
+        item.x = startX + (ev.clientX - startMouseX) / pageZoom;
+        item.y = startY + (ev.clientY - startMouseY) / pageZoom;
         el.style.left = item.x + 'px';
         el.style.top = item.y + 'px';
+      }
+      function onUp() {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        renderPropsPanel();
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    el.addEventListener('mousedown', (e) => {
+      if (!e.target.classList.contains('resize-handle')) return;
+      if (activeTool !== 'select') return;
+      if (item.locked) return; // item bloqueado: não redimensiona pelo canvas
+      selectItem(item.id);
+      const startMouseX = e.clientX, startMouseY = e.clientY;
+      const startW = item.w, startH = item.h;
+      function onMove(ev) {
+        item.w = Math.max(30, startW + (ev.clientX - startMouseX) / pageZoom);
+        item.h = Math.max(30, startH + (ev.clientY - startMouseY) / pageZoom);
+        el.style.width = item.w + 'px';
+        el.style.height = item.h + 'px';
+        if (item.type === 'map' && item.leaflet) item.leaflet.invalidateSize();
+        else if (item.type !== 'map') renderItemContent(el, item);
       }
       function onUp() {
         window.removeEventListener('mousemove', onMove);
@@ -785,26 +1842,38 @@
       e.stopPropagation();
     });
 
+    // Ferramenta 4 — "Mover conteúdo do item": o clique aqui só deve afetar o
+    // conteúdo interno quando (a) este item é um mapa E (b) já está selecionado
+    // (feito antes com a ferramenta 3). Em qualquer outro caso — item de mapa
+    // não selecionado, ou qualquer outro tipo de item — o clique se comporta
+    // como a ferramenta "Deslocar layout": desloca a página, sem selecionar
+    // nem mover nada.
     el.addEventListener('mousedown', (e) => {
-      if (!e.target.classList.contains('resize-handle')) return;
-      selectItem(item.id);
-      const startMouseX = e.clientX, startMouseY = e.clientY;
-      const startW = item.w, startH = item.h;
-      function onMove(ev) {
-        item.w = Math.max(30, startW + (ev.clientX - startMouseX));
-        item.h = Math.max(30, startH + (ev.clientY - startMouseY));
-        el.style.width = item.w + 'px';
-        el.style.height = item.h + 'px';
-        if (item.type === 'map' && item.leaflet) item.leaflet.invalidateSize();
+      if (activeTool !== 'move-content') return;
+      const isSelectedMap = item.type === 'map' && layoutState.selectedId === item.id;
+      if (isSelectedMap) {
+        // Deixa o Leaflet cuidar do próprio drag/zoom aqui (comportamento nativo:
+        // arrastar pana, scroll faz zoom) — não interceptamos o evento.
+        return;
       }
-      function onUp() {
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-        renderPropsPanel();
+      startPageScrollDrag(e);
+    });
+  }
+
+  // Habilita/desabilita o dragging nativo do Leaflet conforme a ferramenta ativa,
+  // para que a ferramenta 3 nunca mova o conteúdo do mapa por engano.
+  function syncMapInteractivityWithTool() {
+    layoutState.items.filter(i => i.type === 'map' && i.leaflet).forEach(i => {
+      const contentModeActive = activeTool === 'move-content' && layoutState.selectedId === i.id;
+      if (contentModeActive) {
+        i.leaflet.dragging.enable();
+        i.leaflet.scrollWheelZoom.enable();
+        i.leaflet.doubleClickZoom.enable();
+      } else {
+        i.leaflet.dragging.disable();
+        i.leaflet.scrollWheelZoom.disable();
+        i.leaflet.doubleClickZoom.disable();
       }
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-      e.stopPropagation();
     });
   }
 
@@ -816,45 +1885,391 @@
   function renderItemsPanel() {
     itemsListEl.innerHTML = '';
     layoutState.items.slice().reverse().forEach(item => {
+      if (item.visible === undefined) item.visible = true;
+      if (item.locked === undefined) item.locked = false;
+
       const li = document.createElement('li');
-      li.className = layoutState.selectedId === item.id ? 'selected' : '';
-      li.innerHTML = '<span class="item-name">' + itemLabel(item) + '</span>';
+      li.className = (layoutState.selectedId === item.id ? 'selected' : '') + (item.visible ? '' : ' item-hidden');
+
+      const eyeCell = document.createElement('span');
+      eyeCell.className = 'col-eye';
+      const eyeInput = document.createElement('input');
+      eyeInput.type = 'checkbox';
+      eyeInput.checked = item.visible;
+      eyeInput.title = 'Mostrar/ocultar item';
+      eyeInput.addEventListener('click', (e) => e.stopPropagation());
+      eyeInput.addEventListener('change', () => {
+        item.visible = eyeInput.checked;
+        applyItemVisibility(item);
+        renderItemsPanel();
+      });
+      eyeCell.appendChild(eyeInput);
+
+      const lockCell = document.createElement('span');
+      lockCell.className = 'col-lock';
+      const lockInput = document.createElement('input');
+      lockInput.type = 'checkbox';
+      lockInput.checked = item.locked;
+      lockInput.title = 'Bloquear item';
+      lockInput.addEventListener('click', (e) => e.stopPropagation());
+      lockInput.addEventListener('change', () => {
+        item.locked = lockInput.checked;
+        applyItemLocked(item);
+        renderItemsPanel();
+      });
+      lockCell.appendChild(lockInput);
+
+      const nameCell = document.createElement('span');
+      nameCell.className = 'item-name';
+      nameCell.innerHTML = '<span class="item-icon">' + itemIconSvg(item) + '</span>' + itemLabel(item);
+
+      li.appendChild(eyeCell);
+      li.appendChild(lockCell);
+      li.appendChild(nameCell);
       li.addEventListener('click', () => selectItem(item.id));
       itemsListEl.appendChild(li);
     });
   }
 
+  // Aplica visibilidade real ao elemento do item na página do layout.
+  function applyItemVisibility(item) {
+    const el = pageEl.querySelector('.layout-item[data-id="' + item.id + '"]');
+    if (el) el.style.display = item.visible ? '' : 'none';
+  }
+
+  // Bloquear apenas impede seleção/arraste/redimensionamento do item pelo
+  // canvas (o clique no painel de itens continua funcionando, como no QGIS:
+  // "Locked items are not selectable on the canvas").
+  function applyItemLocked(item) {
+    const el = pageEl.querySelector('.layout-item[data-id="' + item.id + '"]');
+    if (el) {
+      el.style.pointerEvents = item.locked ? 'none' : '';
+      el.classList.toggle('locked-item', !!item.locked);
+    }
+    if (item.locked && layoutState.selectedId === item.id) selectItem(null);
+  }
+
+  // ---- Botões "Bloquear itens selecionados" / "Desbloquear tudo" (menu Itens / barra Ações) ----
+  document.getElementById('btn-lock-selected').addEventListener('click', () => {
+    const item = getItem(layoutState.selectedId);
+    if (!item) { toast('Selecione um item para bloquear.', 2000); return; }
+    item.locked = true;
+    applyItemLocked(item);
+    renderItemsPanel();
+    renderPropsPanel();
+    toast('Item bloqueado.', 1600);
+  });
+  document.getElementById('btn-unlock-all').addEventListener('click', () => {
+    layoutState.items.forEach(i => { i.locked = false; applyItemLocked(i); });
+    renderItemsPanel();
+    renderPropsPanel();
+    toast('Todos os itens foram desbloqueados.', 1800);
+  });
+
+  // ---- Abas do painel "Itens" / "Desfazer histórico" ----
+  const itemsTabItems = document.getElementById('items-tab-items');
+  const itemsTabHistory = document.getElementById('items-tab-history');
+  const itemsPanelHeader = document.getElementById('items-panel-header');
+  const itemsTableHead = document.getElementById('items-table-head');
+  const itemsListWrap = document.getElementById('items-list-wrap');
+
+  function setItemsTab(tab) {
+    const isItems = tab === 'items';
+    itemsTabItems.classList.toggle('active', isItems);
+    itemsTabHistory.classList.toggle('active', !isItems);
+    itemsPanelHeader.querySelector('span').textContent = isItems ? 'Itens' : 'Desfazer histórico';
+    itemsPanelHeader.querySelector('.items-panel-icons').style.display = isItems ? '' : 'none';
+    itemsTableHead.style.display = isItems ? '' : 'none';
+    itemsListWrap.style.display = isItems ? '' : 'none';
+    if (!isItems) toast('Desfazer histórico ainda não foi implementado nesta versão do protótipo.', 2600);
+  }
+  itemsTabItems.addEventListener('click', () => setItemsTab('items'));
+  itemsTabHistory.addEventListener('click', () => setItemsTab('history'));
+
+  document.getElementById('items-toggle-visibility-all').addEventListener('click', () => {
+    const anyVisible = layoutState.items.some(i => i.visible !== false);
+    layoutState.items.forEach(i => { i.visible = !anyVisible; applyItemVisibility(i); });
+    renderItemsPanel();
+  });
+  document.getElementById('items-panel-close').addEventListener('click', () => {
+    document.getElementById('items-panel-block').style.display = 'none';
+  });
+
   // ---- Painel "Propriedades do item" ----
+  // Estado de quais grupos (accordion) estão colapsados, por id de grupo.
+  // Por padrão replica o QGIS: os grupos principais do tipo de item vêm
+  // abertos, e os secundários (Intervalo Temporal, Controlado por Atlas,
+  // Grades, Visões gerais, Rotação, Moldura, Plano de fundo, Item ID,
+  // Renderização, Variáveis) fechados — igual ao print de referência, que
+  // mostra tudo recolhido por padrão.
+  const collapsedGroups = {
+    temporal: true, atlascontrol: true, grids: true, overviews: true,
+    rotation: true, frame: true, background: true, itemid: true,
+    rendering: true, variables: true,
+  };
+
+  function propGroup(id, title, bodyHtml) {
+    const collapsed = collapsedGroups[id] ? ' collapsed' : '';
+    return `
+      <div class="prop-group${collapsed}" data-group="${id}">
+        <div class="prop-group-header" data-toggle="${id}"><span class="chevron"></span><span>${title}</span></div>
+        <div class="prop-group-body">${bodyHtml}</div>
+      </div>`;
+  }
+
+  // Grupo "vazio": existe no QGIS real (aparece no print geral das
+  // propriedades) mas nenhum print detalhado dele foi enviado, então fica
+  // apenas como cabeçalho cinza — sem seta, sem conteúdo, só um aviso ao
+  // clicar. É o caso de Intervalo Temporal, Controlado por Atlas e Visões
+  // gerais. `checkboxLabel` reproduz a caixinha que aparece ao lado do
+  // título de "Intervalo Temporal" no print geral.
+  function disabledGroup(id, title, checkboxLabel) {
+    const checkbox = checkboxLabel
+      ? `<input type="checkbox" disabled style="margin-right:2px;">` : '';
+    return `
+      <div class="prop-group disabled" data-group="${id}">
+        <div class="prop-group-header" data-toggle="${id}" data-disabled="1">${checkbox}<span>${title}</span></div>
+      </div>`;
+  }
+
+  function checkboxRow(id, label, checked) {
+    return `<div class="prop-row prop-row-checkbox"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''}><label for="${id}">${label}</label></div>`;
+  }
+
   function renderPropsPanel() {
     const item = getItem(layoutState.selectedId);
     if (!item) {
       itemPropsBody.innerHTML = '<div id="no-selection-msg">Nenhum item selecionado.</div>';
       return;
     }
-    let extra = '';
-    if (item.type === 'legend') {
-      extra = `
-        <div class="prop-row"><label>Título</label><input type="text" id="prop-legend-title" value="${escapeHtml(item.title)}"></div>
-        <div class="prop-row"><label>Atualização automática</label>
-          <select id="prop-legend-auto">
-            <option value="1" ${item.autoUpdate ? 'selected' : ''}>Sim (segue o mapa)</option>
-            <option value="0" ${!item.autoUpdate ? 'selected' : ''}>Não (manual)</option>
-          </select>
+    if (item.frameEnabled === undefined) item.frameEnabled = false;
+    if (item.frameColor === undefined) item.frameColor = '#000000';
+    if (item.frameWidth === undefined) item.frameWidth = 0.30;
+    if (item.frameJoinStyle === undefined) item.frameJoinStyle = 'miter';
+    // Plano de fundo nasce ATIVO e branco: é o que cobre, por padrão, as
+    // partes de um item que não têm forma própria (ex.: área fora da
+    // legenda, fora do texto de um rótulo). Desmarcar a opção nas
+    // propriedades faz essas áreas ficarem transparentes.
+    if (item.bgEnabled === undefined) item.bgEnabled = true;
+    if (item.bgColor === undefined) item.bgColor = '#ffffff';
+    if (item.itemId === undefined) item.itemId = '';
+    if (item.opacity === undefined) item.opacity = 100;
+    if (item.blendMode === undefined) item.blendMode = 'normal';
+    if (item.excludeExports === undefined) item.excludeExports = false;
+    if (item.rotation === undefined) item.rotation = 0;
+    if (item.referencePoint === undefined) item.referencePoint = 'tl';
+    if (item.sizeLocked === undefined) item.sizeLocked = false;
+
+    let html = '';
+
+    // ---- Barra de ferramentas própria do item de Mapa (topo do painel,
+    // como descrito em "18.2.2.1. A Barra de Ferramentas") ----
+    if (item.type === 'map') {
+      html += `
+        <div id="map-item-toolbar">
+          <button class="tool-btn" id="map-tb-refresh" title="Atualizar visualização do mapa" style="background-image:url('icons/mActionRefresh.svg')"></button>
+          <button class="tool-btn" id="map-tb-set-canvas-extent" title="Definir para a extensão da tela" style="background-image:url('icons/mActionSetToCanvasExtent.svg')"></button>
+          <button class="tool-btn" id="map-tb-view-extent" title="Ver extensão atual do mapa na tela" style="background-image:url('icons/mActionViewExtentInCanvas.svg')"></button>
+          <span class="toolbar-sep"></span>
+          <button class="tool-btn" id="map-tb-set-canvas-scale" title="Definir escala do mapa igual à da tela" style="background-image:url('icons/mActionSetToCanvasScale.svg')"></button>
+          <button class="tool-btn" id="map-tb-view-scale" title="Definir tela principal igual à escala do mapa" style="background-image:url('icons/mActionViewScaleInCanvas.svg')"></button>
+          <span class="toolbar-sep"></span>
+          <button class="tool-btn" id="map-tb-move-content" title="Mover conteúdo do item (pan/zoom interativo)" style="background-image:url('icons/mActionMoveItemContent.svg')"></button>
+          <button class="tool-btn not-implemented" id="map-tb-labeling" title="Configurações de rotulagem" style="background-image:url('icons/labelingSingle.svg')"></button>
+          <button class="tool-btn not-implemented" id="map-tb-clip" title="Configurações de recorte" style="background-image:url('icons/mAlgorithmClip.svg')"></button>
         </div>`;
-    } else if (item.type === 'label') {
-      extra = `<div class="prop-row"><label>Texto</label><input type="text" id="prop-label-text" value="${escapeHtml(item.text)}"></div>`;
-    } else if (item.type === 'map') {
-      extra = `<div class="prop-row"><label>Extensão</label><span style="color:var(--text-dim); font-size:11px;">Independente do mapa principal — ajuste arrastando/dando zoom dentro do item.</span></div>`;
     }
-    itemPropsBody.innerHTML = `
-      <div class="prop-row"><label>ID</label><span>${itemLabel(item)}</span></div>
-      <div class="prop-row"><label>X (px)</label><input type="number" id="prop-x" value="${Math.round(item.x)}"></div>
-      <div class="prop-row"><label>Y (px)</label><input type="number" id="prop-y" value="${Math.round(item.y)}"></div>
-      <div class="prop-row"><label>Largura (px)</label><input type="number" id="prop-w" value="${Math.round(item.w)}"></div>
-      <div class="prop-row"><label>Altura (px)</label><input type="number" id="prop-h" value="${Math.round(item.h)}"></div>
-      ${extra}
-      <button id="prop-delete-btn" style="margin-top:6px; padding:5px 10px; border:1px solid var(--panel-border); border-radius:3px; background:#fff; cursor:pointer;">Remover item</button>
-    `;
+
+    // ---- Grupo(s) específico(s) do tipo de item ----
+    if (item.type === 'map') {
+      html += propGroup('main-map', 'Propriedades principais', `
+        <div class="prop-row"><label>Escala</label><input type="text" id="prop-map-scale" value="${scaleTextForZoom(item.zoom)}"></div>
+        <div class="prop-row"><label>Rotação do mapa</label><input type="number" id="prop-map-rotation" value="${item.mapRotation || 0}" step="1"> °</div>
+        <div class="prop-row"><label>SRC</label><select id="prop-map-crs">
+          <option value="project" selected>Usar SRC do projeto</option>
+          <option value="4326">EPSG:4326 - WGS 84</option>
+          <option value="3857">EPSG:3857 - Web Mercator</option>
+        </select></div>
+        ${checkboxRow('prop-map-draw-canvas-items', 'Desenhar itens da tela do mapa', item.drawCanvasItems)}
+      `);
+      html += propGroup('layers-map', 'Camadas', `
+        ${checkboxRow('prop-map-follow-theme', 'Seguir modelo do mapa', item.followTheme)}
+        <div class="prop-row"><select id="prop-map-theme" ${item.followTheme ? '' : 'disabled'}>
+          <option>&lt;nenhum&gt;</option>
+        </select></div>
+        <div class="prop-row prop-row-checkbox">
+          <input type="checkbox" id="prop-map-lock-layers" ${item.lockLayers ? 'checked' : ''}>
+          <label for="prop-map-lock-layers">Travar camadas</label>
+          <span class="lock-toggle-btn" id="prop-map-layers-eye" title="Pré-visualizar camadas travadas" style="margin-left:auto;">&#128065;</span>
+        </div>
+        <div class="prop-row prop-row-checkbox">
+          <input type="checkbox" id="prop-map-lock-styles" ${item.lockStyles ? 'checked' : ''} ${item.lockLayers ? '' : 'disabled'}>
+          <label for="prop-map-lock-styles">Travar estilos para as camadas</label>
+        </div>
+        <div class="prop-hint">Quando desmarcado, o item de mapa segue automaticamente a visibilidade e o estilo das camadas na janela principal do QGIS.</div>
+      `);
+      html += propGroup('extents-map', 'Extensões', `
+        <div class="prop-row"><label>X mín</label><input type="number" id="prop-map-xmin" value="${(item.center ? item.center[1] : 0).toFixed(4)}"></div>
+        <div class="prop-row"><label>Y mín</label><input type="number" id="prop-map-ymin" value="${(item.center ? item.center[0] : 0).toFixed(4)}"></div>
+        <div class="prop-row"><label>X máx</label><input type="number" id="prop-map-xmax" value="${(item.center ? item.center[1] : 0).toFixed(4)}"></div>
+        <div class="prop-row"><label>Y máx</label><input type="number" id="prop-map-ymax" value="${(item.center ? item.center[0] : 0).toFixed(4)}"></div>
+        <div class="prop-hint">Independente do mapa principal — ajuste arrastando/dando zoom dentro do item com a ferramenta "Mover conteúdo do item" acima.</div>
+      `);
+      // ---- Intervalo Temporal / Controlado por Atlas / Visões gerais: sem
+      // print detalhado enviado — ficam como cabeçalho cinza, sem implementar. ----
+      html += disabledGroup('temporal', 'Intervalo Temporal', true);
+      html += disabledGroup('atlascontrol', 'Controlado por Atlas', false);
+      // ---- Grades: print detalhado enviado (botões + lista + "Modificar
+      // grade…"), reproduzido visualmente; ainda sem edição real de grades. ----
+      html += propGroup('grids', 'Grades', `
+        <div class="grid-list-toolbar">
+          <button class="tool-btn not-implemented" id="grid-add-btn" title="Adicionar grade" style="background-image:url('icons/mActionAddBasicRectangle.svg')"></button>
+          <button class="tool-btn not-implemented" id="grid-remove-btn" title="Remover grade selecionada" style="background-image:url('icons/mActionRemove.svg')"></button>
+          <button class="tool-btn not-implemented" id="grid-up-btn" title="Mover grade para cima" style="background-image:url('icons/mActionArrowUp.svg')"></button>
+          <button class="tool-btn not-implemented" id="grid-down-btn" title="Mover grade para baixo" style="background-image:url('icons/mActionArrowDown.svg')"></button>
+        </div>
+        <div class="grid-empty-list"></div>
+        <button class="grid-modify-btn" id="grid-modify-btn" disabled>Modificar grade…</button>
+      `);
+      html += disabledGroup('overviews', 'Visões gerais', false);
+    } else if (item.type === 'legend') {
+      html += propGroup('main-legend', 'Legenda', `
+        <div class="prop-row"><label>Título</label><input type="text" id="prop-legend-title" value="${escapeHtml(item.title)}"></div>
+        <div class="prop-row"><label>Atualização</label>
+          <select id="prop-legend-auto">
+            <option value="1" ${item.autoUpdate ? 'selected' : ''}>Automática (segue o mapa)</option>
+            <option value="0" ${!item.autoUpdate ? 'selected' : ''}>Manual</option>
+          </select>
+        </div>
+      `);
+    } else if (item.type === 'label') {
+      html += propGroup('main-label', 'Rótulo (texto principal)', `
+        <div class="prop-row"><label>Texto</label><input type="text" id="prop-label-text" value="${escapeHtml(item.text)}"></div>
+      `);
+    } else if (item.type === 'image') {
+      html += propGroup('main-image', 'Imagem principal', `
+        <div class="prop-row"><label>Arquivo</label><span class="prop-hint">${item.src ? 'Imagem carregada' : 'Nenhuma imagem — duplo clique no item'}</span></div>
+        <button id="prop-image-choose-btn" style="margin-top:2px; padding:5px 10px; border:1px solid var(--panel-border); border-radius:3px; background:#fff; cursor:pointer;">Escolher imagem…</button>
+      `);
+    } else if (item.type === 'northarrow') {
+      const opts = Object.keys(NORTH_ARROW_STYLES).map(k =>
+        `<option value="${k}" ${item.style === k ? 'selected' : ''}>${k}</option>`).join('');
+      html += propGroup('main-northarrow', 'Seta norte', `<div class="prop-row"><label>Estilo</label><select id="prop-northarrow-style">${opts}</select></div>`);
+    } else if (item.type === 'shape') {
+      html += propGroup('main-shape', 'Forma', `
+        <div class="prop-row"><label>Forma</label>
+          <select id="prop-shape-kind">
+            <option value="rectangle" ${item.shape === 'rectangle' ? 'selected' : ''}>Retângulo</option>
+            <option value="ellipse" ${item.shape === 'ellipse' ? 'selected' : ''}>Elipse</option>
+            <option value="triangle" ${item.shape === 'triangle' ? 'selected' : ''}>Triângulo</option>
+          </select>
+        </div>
+        <div class="prop-row"><label>Preenchimento</label><input type="color" id="prop-shape-fill" value="${item.fill}"></div>
+        <div class="prop-row"><label>Contorno</label><input type="color" id="prop-shape-stroke" value="${item.stroke}"></div>
+      `);
+    } else if (item.type === 'marker') {
+      html += propGroup('main-marker', 'Marcador', `
+        <div class="prop-row"><label>Preenchimento</label><input type="color" id="prop-marker-fill" value="${item.fill}"></div>
+        <div class="prop-row"><label>Contorno</label><input type="color" id="prop-marker-stroke" value="${item.stroke}"></div>
+      `);
+    } else if (item.type === 'arrow') {
+      html += propGroup('main-arrow', 'Seta', `<div class="prop-row"><label>Cor</label><input type="color" id="prop-arrow-stroke" value="${item.stroke}"></div>`);
+    } else if (item.type === 'nodeshape') {
+      html += propGroup('main-nodeshape', item.kind === 'polyline' ? 'Polilinha' : 'Polígono', `
+        <div class="prop-row"><label>Nós</label><span>${item.nodes.length}</span></div>
+        ${item.kind === 'polygon' ? `<div class="prop-row"><label>Preenchimento</label><input type="color" id="prop-node-fill" value="${item.fill}"></div>` : ''}
+        <div class="prop-row"><label>Contorno</label><input type="color" id="prop-node-stroke" value="${item.stroke}"></div>
+        <div class="prop-hint">Use a ferramenta "Editar nós de item" para ajustar a forma.</div>
+      `);
+    }
+
+    // ---- Propriedades comuns a todos os itens, replicando "18.2.1.3.
+    // Propriedades comuns dos itens": Posição e tamanho, Rotação, Moldura,
+    // Plano de fundo, ID do item, Renderização, Variáveis — mesma ordem e
+    // agrupamento do print geral enviado (Rotação é um grupo próprio,
+    // separado de Posição e tamanho). ----
+    const REFPOINTS = ['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'];
+    html += propGroup('position-size', 'Posição e tamanho', `
+      <div class="prop-row"><label>Página</label><input type="number" id="prop-page" value="1" disabled></div>
+      <div class="prop-row"><label>X</label><div class="prop-row-unit">
+        <input type="number" id="prop-x" value="${Math.round(item.x)}" ${item.locked ? 'disabled' : ''}>
+        <select class="unit-select" id="prop-x-unit" ${item.locked ? 'disabled' : ''}><option value="px" selected>px</option><option value="mm">mm</option></select>
+      </div></div>
+      <div class="prop-row"><label>Y</label><div class="prop-row-unit">
+        <input type="number" id="prop-y" value="${Math.round(item.y)}" ${item.locked ? 'disabled' : ''}>
+        <select class="unit-select" id="prop-y-unit" ${item.locked ? 'disabled' : ''}><option value="px" selected>px</option><option value="mm">mm</option></select>
+      </div></div>
+      <div class="prop-row"><label>Largura</label><div class="prop-row-unit">
+        <input type="number" id="prop-w" value="${Math.round(item.w)}" ${item.locked ? 'disabled' : ''}>
+        <span class="lock-toggle-btn${item.sizeLocked ? ' active' : ''}" id="prop-size-lock" title="Manter proporção entre largura e altura" role="button">&#128274;</span>
+        <select class="unit-select" id="prop-w-unit" ${item.locked ? 'disabled' : ''}><option value="px" selected>px</option><option value="mm">mm</option></select>
+      </div></div>
+      <div class="prop-row"><label>Altura</label><div class="prop-row-unit">
+        <input type="number" id="prop-h" value="${Math.round(item.h)}" ${item.locked ? 'disabled' : ''}>
+        <select class="unit-select" id="prop-h-unit" ${item.locked ? 'disabled' : ''}><option value="px" selected>px</option><option value="mm">mm</option></select>
+      </div></div>
+      <div class="refpoint-row"><label>Ponto de referência</label><div class="refpoint-grid">
+        ${REFPOINTS.map(rp => `<input type="radio" name="prop-refpoint" value="${rp}" ${item.referencePoint === rp ? 'checked' : ''} ${item.locked ? 'disabled' : ''}>`).join('')}
+      </div></div>
+      ${item.locked ? '<div class="prop-hint">Item bloqueado — desbloqueie no painel Itens para editar a posição e o tamanho.</div>' : ''}
+    `);
+    html += propGroup('rotation', 'Rotação', `
+      <div class="prop-row"><label>Rotação</label><input type="number" id="prop-rotation" value="${item.rotation}" step="1"> °</div>
+    `);
+    html += propGroup('frame', 'Moldura', `
+      ${checkboxRow('prop-frame-enabled', 'Moldura', item.frameEnabled)}
+      <div class="prop-row"><label>Cor</label><input type="color" id="prop-frame-color" value="${item.frameColor}" ${item.frameEnabled ? '' : 'disabled'}></div>
+      <div class="prop-row"><label>Espessura</label><input type="number" id="prop-frame-width" value="${item.frameWidth}" step="0.1" min="0" ${item.frameEnabled ? '' : 'disabled'}> mm</div>
+      <div class="prop-row"><label>Estilo da união</label><select id="prop-frame-join" ${item.frameEnabled ? '' : 'disabled'}>
+        <option value="miter" ${item.frameJoinStyle === 'miter' ? 'selected' : ''}>Pontiagudo</option>
+        <option value="round" ${item.frameJoinStyle === 'round' ? 'selected' : ''}>Arredondado</option>
+        <option value="bevel" ${item.frameJoinStyle === 'bevel' ? 'selected' : ''}>Chanfrado</option>
+      </select></div>
+    `);
+    html += propGroup('background', 'Plano de fundo', `
+      ${checkboxRow('prop-bg-enabled', 'Plano de fundo', item.bgEnabled)}
+      <div class="prop-row"><label>Cor</label><input type="color" id="prop-bg-color" value="${item.bgColor}" ${item.bgEnabled ? '' : 'disabled'}></div>
+    `);
+    html += propGroup('itemid', 'ID do item', `
+      <div class="prop-row"><label>ID</label><input type="text" id="prop-item-id" value="${escapeHtml(item.itemId)}" placeholder="${itemLabel(item)}"></div>
+    `);
+    html += propGroup('rendering', 'Renderização', `
+      <div class="prop-row"><label>Modo de mistura</label><select id="prop-blend-mode">
+        <option value="normal" ${item.blendMode === 'normal' ? 'selected' : ''}>Normal</option>
+        <option value="multiply" ${item.blendMode === 'multiply' ? 'selected' : ''}>Multiplicar</option>
+        <option value="screen" ${item.blendMode === 'screen' ? 'selected' : ''}>Tela</option>
+        <option value="overlay" ${item.blendMode === 'overlay' ? 'selected' : ''}>Sobrepor</option>
+        <option value="darken" ${item.blendMode === 'darken' ? 'selected' : ''}>Escurecer</option>
+        <option value="lighten" ${item.blendMode === 'lighten' ? 'selected' : ''}>Clarear</option>
+        <option value="difference" ${item.blendMode === 'difference' ? 'selected' : ''}>Diferença</option>
+      </select></div>
+      <div class="prop-row"><label>Opacidade</label><input type="range" id="prop-opacity" min="0" max="100" value="${item.opacity}" style="flex:1;"><span style="width:34px; text-align:right; font-size:11px;">${item.opacity}%</span></div>
+      ${checkboxRow('prop-exclude-exports', 'Excluir item das exportações', item.excludeExports)}
+    `);
+    html += propGroup('variables', 'Variáveis', `
+      <div class="prop-hint">Nenhuma variável personalizada neste item.</div>
+    `);
+
+    html += `<button id="prop-delete-btn" style="margin:10px 8px; padding:5px 10px; border:1px solid var(--panel-border); border-radius:3px; background:#fff; cursor:pointer;" ${item.locked ? 'disabled' : ''}>Remover item</button>`;
+
+    itemPropsBody.innerHTML = html;
+
+    // ---- Accordion: expandir/colapsar grupos ----
+    // Grupos marcados como "disabled" (Intervalo Temporal, Controlado por
+    // Atlas, Visões gerais) não têm conteúdo pra mostrar — em vez de
+    // expandir, só avisam que a seção ainda não foi implementada.
+    itemPropsBody.querySelectorAll('.prop-group-header').forEach(header => {
+      header.addEventListener('click', () => {
+        if (header.dataset.disabled) {
+          toast('Esta seção ainda não foi implementada nesta versão do protótipo.', 2600);
+          return;
+        }
+        const id = header.dataset.toggle;
+        collapsedGroups[id] = !collapsedGroups[id];
+        renderPropsPanel();
+      });
+    });
+
     const bind = (id, prop, parse) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -864,8 +2279,156 @@
         if (item.type === 'map' && item.leaflet) item.leaflet.invalidateSize();
       });
     };
-    bind('prop-x', 'x', Number); bind('prop-y', 'y', Number);
-    bind('prop-w', 'w', Number); bind('prop-h', 'h', Number);
+    const bindChecked = (id, prop, onChange) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', () => {
+        item[prop] = el.checked;
+        renderPageItems();
+        if (onChange) onChange();
+        else renderPropsPanel();
+      });
+    };
+
+    if (!item.locked) {
+      bind('prop-x', 'x', Number); bind('prop-y', 'y', Number);
+      bind('prop-w', 'w', Number); bind('prop-h', 'h', Number);
+    }
+    bind('prop-rotation', 'rotation', Number);
+    bindChecked('prop-frame-enabled', 'frameEnabled', () => renderPropsPanel());
+    bind('prop-frame-color', 'frameColor', String);
+    bind('prop-frame-width', 'frameWidth', (v) => Math.max(0, Number(v) || 0));
+    bind('prop-frame-join', 'frameJoinStyle', String);
+    bindChecked('prop-bg-enabled', 'bgEnabled', () => renderPropsPanel());
+    bind('prop-bg-color', 'bgColor', String);
+    bind('prop-item-id', 'itemId', String);
+    bind('prop-blend-mode', 'blendMode', String);
+    bindChecked('prop-exclude-exports', 'excludeExports');
+    const opacityEl = document.getElementById('prop-opacity');
+    if (opacityEl) {
+      opacityEl.addEventListener('input', () => {
+        item.opacity = Number(opacityEl.value);
+        opacityEl.nextElementSibling.textContent = item.opacity + '%';
+        renderPageItems();
+      });
+    }
+
+    // ---- Página / Ponto de referência: só armazenam o valor escolhido (a
+    // grade 3x3 não recalcula posição/tamanho ainda nesta versão). ----
+    itemPropsBody.querySelectorAll('input[name="prop-refpoint"]').forEach((radio) => {
+      radio.addEventListener('change', () => { item.referencePoint = radio.value; });
+    });
+
+    // ---- Seletores de unidade (mm/px) de "Posição e tamanho": só "px"
+    // (o valor real armazenado) está implementado — escolher "mm" avisa e
+    // volta para "px", em vez de fingir converter o valor. ----
+    itemPropsBody.querySelectorAll('.unit-select').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        if (sel.value !== 'px') {
+          toast('Conversão de unidades ainda não implementada nesta versão do protótipo.', 2600);
+          sel.value = 'px';
+        }
+      });
+    });
+
+    // ---- Cadeado "manter proporção" entre Largura/Altura: alterna o ícone
+    // e avisa que o travamento ainda não é aplicado ao redimensionar. ----
+    const sizeLockEl = document.getElementById('prop-size-lock');
+    if (sizeLockEl) {
+      sizeLockEl.addEventListener('click', () => {
+        item.sizeLocked = !item.sizeLocked;
+        toast('Manter proporção: ainda não é aplicado ao redimensionar nesta versão do protótipo.', 2800);
+        renderPropsPanel();
+      });
+    }
+
+    if (item.type === 'map') {
+      // Rotação do mapa: aplica visualmente ao conteúdo do Leaflet (não à
+      // moldura do item) a cada mudança, além de salvar o valor.
+      const mapRotationEl = document.getElementById('prop-map-rotation');
+      if (mapRotationEl) {
+        mapRotationEl.addEventListener('change', () => {
+          item.mapRotation = Number(mapRotationEl.value) || 0;
+          applyMapRotation(item);
+        });
+      }
+      applyMapRotation(item); // garante que a rotação salva já está refletida visualmente ao reabrir o painel
+      bindChecked('prop-map-draw-canvas-items', 'drawCanvasItems');
+      bindChecked('prop-map-follow-theme', 'followTheme', () => renderPropsPanel());
+      bindChecked('prop-map-lock-layers', 'lockLayers', () => {
+        if (!item.lockLayers) item._lockedLayerSnapshot = null; // ao destravar, recaptura do projeto ao vivo
+        applySnapshotToMapItem(item);
+        renderPropsPanel(); // reflete no checkbox "Travar estilos para as camadas", que só fica habilitável com este marcado
+      });
+      bindChecked('prop-map-lock-styles', 'lockStyles', () => {
+        if (!item.lockStyles) item._lockedStyles = null; // ao destravar, recaptura o estilo atual do projeto
+        applySnapshotToMapItem(item);
+      });
+
+      // ---- Escala do mapa: digitar "1:25000" (ou "25000", "1/25000") e dar
+      // Enter/perder foco aplica o zoom correspondente no Leaflet do item,
+      // exatamente como no QGIS. scaleTextForZoom() é a mesma função usada
+      // para MOSTRAR a escala, aqui usada de forma invertida (Math.log2) para
+      // calcular o zoom a partir do denominador digitado. ----
+      const scaleEl = document.getElementById('prop-map-scale');
+      if (scaleEl && item.leaflet) {
+        let suppressNextChange = false;
+        const applyScaleInput = () => {
+          const raw = scaleEl.value.trim();
+          const afterColon = raw.includes(':') ? raw.split(':').pop() : (raw.includes('/') ? raw.split('/').pop() : raw);
+          const digitsOnly = afterColon.replace(/[.\s]/g, '').replace(',', '.');
+          const denominator = parseFloat(digitsOnly);
+          if (!Number.isFinite(denominator) || denominator <= 0) {
+            toast('Escala inválida. Use o formato 1:25000, por exemplo.', 2200);
+            scaleEl.value = scaleTextForZoom(item.zoom);
+            return;
+          }
+          const newZoom = Math.log2(591657550 / denominator);
+          item.leaflet.setZoom(newZoom); // dispara 'moveend', que já chama updateScaleFieldIfPresent
+        };
+        // Aplica direto no Enter (não depende de blur()->change disparar de
+        // forma confiável em todo navegador/contexto). blur() é chamado
+        // depois só para tirar o foco visualmente; suppressNextChange evita
+        // que o 'change' disparado por esse blur() reaplique tudo de novo.
+        scaleEl.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          applyScaleInput();
+          suppressNextChange = true;
+          scaleEl.blur();
+        });
+        // Mantém também o caminho por perda de foco sem Enter (clicar fora,
+        // Tab para o próximo campo etc.) — mesmo comportamento do QGIS.
+        scaleEl.addEventListener('change', () => {
+          if (suppressNextChange) { suppressNextChange = false; return; }
+          applyScaleInput();
+        });
+      }
+
+      const wireToast = (id, label) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', () => toast('"' + label + '" ainda não foi implementada nesta versão do protótipo.', 2400));
+      };
+      wireToast('map-tb-refresh', 'Atualizar visualização do mapa');
+      wireToast('map-tb-set-canvas-extent', 'Definir para a extensão da tela');
+      wireToast('map-tb-view-extent', 'Ver extensão atual do mapa na tela');
+      wireToast('map-tb-set-canvas-scale', 'Definir escala do mapa igual à da tela');
+      wireToast('map-tb-view-scale', 'Definir tela principal igual à escala do mapa');
+      const moveContentBtn = document.getElementById('map-tb-move-content');
+      if (moveContentBtn) moveContentBtn.addEventListener('click', () => setActiveTool('move-content'));
+
+      // ---- Grupo "Grades": botões e "Modificar grade…" ainda não editam
+      // grades de verdade, só reproduzem a barra vista no print. ----
+      wireToast('grid-add-btn', 'Adicionar grade');
+      wireToast('grid-remove-btn', 'Remover grade');
+      wireToast('grid-up-btn', 'Mover grade para cima');
+      wireToast('grid-down-btn', 'Mover grade para baixo');
+      // "Modificar grade…" fica desabilitado (igual ao print): só se habilita
+      // quando existe alguma grade selecionada na lista, o que esta versão
+      // do protótipo ainda não cria.
+      // ---- Grupo "Camadas": ícone de pré-visualização das camadas travadas ----
+      wireToast('prop-map-layers-eye', 'Pré-visualizar camadas travadas');
+    }
     if (item.type === 'legend') {
       bind('prop-legend-title', 'title', String);
       document.getElementById('prop-legend-auto').addEventListener('change', (e) => {
@@ -874,7 +2437,31 @@
       });
     }
     if (item.type === 'label') bind('prop-label-text', 'text', String);
-    document.getElementById('prop-delete-btn').addEventListener('click', () => deleteItem(item.id));
+    if (item.type === 'image') {
+      document.getElementById('prop-image-choose-btn').addEventListener('click', () => {
+        pendingImageItemId = item.id;
+        imageFileInput.click();
+      });
+    }
+    if (item.type === 'northarrow') bind('prop-northarrow-style', 'style', String);
+    if (item.type === 'shape') {
+      bind('prop-shape-kind', 'shape', String);
+      bind('prop-shape-fill', 'fill', String);
+      bind('prop-shape-stroke', 'stroke', String);
+    }
+    if (item.type === 'marker') {
+      bind('prop-marker-fill', 'fill', String);
+      bind('prop-marker-stroke', 'stroke', String);
+    }
+    if (item.type === 'arrow') bind('prop-arrow-stroke', 'stroke', String);
+    if (item.type === 'nodeshape') {
+      const fillEl = document.getElementById('prop-node-fill');
+      if (fillEl) bind('prop-node-fill', 'fill', String);
+      bind('prop-node-stroke', 'stroke', String);
+    }
+    if (!item.locked) {
+      document.getElementById('prop-delete-btn').addEventListener('click', () => deleteItem(item.id));
+    }
   }
 
   // ---- Ferramentas ainda não implementadas nesta simulação (só visual por enquanto) ----
@@ -897,6 +2484,44 @@
     toast('Exportação como imagem: use a função de captura de tela do navegador ou integre uma lib como html2canvas para este botão.', 4000);
   });
   document.getElementById('tool-print').addEventListener('click', () => window.print());
+
+  // ---- Botões de zoom da barra superior (mesma lógica de zoom da folha usada
+  // pela ferramenta 2, aplicada a partir do centro do viewport visível) ----
+  function zoomFromToolbar(factor) {
+    const rect = canvasScrollEl.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    zoomAround(centerX, centerY, factor);
+  }
+  document.getElementById('btn-zoom-in').addEventListener('click', () => zoomFromToolbar(1.25));
+  document.getElementById('btn-zoom-out').addEventListener('click', () => zoomFromToolbar(1 / 1.25));
+  document.getElementById('btn-zoom-actual').addEventListener('click', () => {
+    zoomFromToolbar(1 / pageZoom); // volta pageZoom para exatamente 1 (100%)
+  });
+  document.getElementById('btn-zoom-full').addEventListener('click', () => {
+    // "Aproximar tudo": ajusta o zoom pra a folha inteira caber no viewport visível,
+    // com uma pequena margem — equivalente ao "zoom to extent" do QGIS.
+    const rect = canvasScrollEl.getBoundingClientRect();
+    const margin = 0.92;
+    const scaleX = (rect.width * margin) / PAGE_WIDTH_PX;
+    const scaleY = (rect.height * margin) / PAGE_HEIGHT_PX;
+    const targetZoom = Math.min(scaleX, scaleY);
+    zoomFromToolbar(targetZoom / pageZoom);
+    canvasScrollEl.scrollLeft = 0;
+    canvasScrollEl.scrollTop = 0;
+  });
+  document.getElementById('btn-refresh').addEventListener('click', () => {
+    // Diferente do mapa principal (que recarrega a página inteira), aqui
+    // "Atualizar" redesenha o layout e reajusta o tamanho de cada mapa —
+    // recarregar a página faria perder o layout montado.
+    layoutState.items.filter(i => i.type === 'map' && i.leaflet).forEach(i => i.leaflet.invalidateSize());
+    renderAll();
+    toast('Layout atualizado.', 1800);
+  });
+
+  // ---- Inicialização da UI (feita por último, com todas as funções já declaradas) ----
+  Object.entries(toolButtons).forEach(([key, btn]) => btn && btn.addEventListener('click', () => setActiveTool(key)));
+  setActiveTool('select');
 
   renderAll();
 })();
