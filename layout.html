@@ -6056,131 +6056,209 @@
   }
 
   // ---------------------------------------------------------------------
-  // Por que o mapa saía em branco na exportação:
-  // as tiles do Leaflet (OSM, Esri etc.) são <img> carregadas de outro
-  // domínio. O html2canvas precisa LER os pixels dessas imagens para
-  // desenhá-las no canvas de saída, e o navegador só permite isso se o
-  // servidor da tile responder com cabeçalhos CORS liberando o uso — o que
-  // a maioria dos provedores de tile (incluindo o OSM padrão) não faz.
-  // "useCORS:true" no html2canvas não resolve isso sozinho: ele só ajuda
-  // quando o SERVIDOR já permite CORS, o que não é o caso aqui. Sem o
-  // cabeçalho, a imagem é tratada como "tainted" e a área é pintada em
-  // branco (silenciosamente, sem erro) na hora de gerar o PNG/SVG/PDF.
+  // HISTÓRICO — por que a abordagem anterior (html2canvas + fetch/dataURL
+  // nas tiles) foi abandonada:
   //
-  // Solução: antes de capturar, buscamos cada tile visível via fetch(),
-  // convertemos para uma data URL (base64) e trocamos o src da <img> por
-  // ela temporariamente. Uma data URL é local por definição — não tem
-  // origem cruzada — então o html2canvas consegue ler os pixels
-  // normalmente. Depois da captura, devolvemos os src originais para o
-  // Leaflet continuar funcionando (pan/zoom) normalmente na tela.
+  // 1) "Mapa em branco": a correção antiga buscava cada tile via fetch()
+  //    e convertia para data URL antes do html2canvas capturar. Isso só
+  //    funciona quando o documento está servido por http(s)://. Aberto
+  //    direto como file:// (um dos dois jeitos em que este layout é usado),
+  //    a origem do documento é "opaca" e o fetch para
+  //    https://tile.openstreetmap.org/... falha por CORS silenciosamente
+  //    (cai no catch, vira só um console.warn) para TODAS as tiles de uma
+  //    vez — o mapa inteiro saía em branco sem nenhum erro visível.
+  //
+  // 2) "Mapa cortado/deslocado": mesmo quando o fetch funcionava (http://),
+  //    a captura isolava o .map-leaflet-div (200%/-50%, ver CSS) como raiz
+  //    do html2canvas. O html2canvas clona esse nó fora do fluxo normal do
+  //    documento, e o pane interno do Leaflet (.leaflet-map-pane) é
+  //    posicionado via transform:translate3d(...) calculado em relação ao
+  //    layout real na tela — a clonagem isolada não preserva essa
+  //    referência de forma confiável, causando desalinhamento/corte.
+  //
+  // Solução atual: não depender do html2canvas para as tiles. Desenhamos o
+  // raster do mapa manualmente num <canvas>, calculando a posição de cada
+  // tile a partir da própria matemática de projeção do Leaflet
+  // (map.project()) — sem clonar DOM, sem depender de transform herdado.
+  // As tiles são carregadas com crossOrigin:'anonymous' (o OSM permite
+  // leitura de pixel para imagens pedidas assim); se o fetch de imagem for
+  // bloqueado (tipicamente só em file://), a falha é reportada de forma
+  // clara em vez de sair em branco silenciosamente.
+  // Camadas vetoriais (GeoJSON) e a grade (.map-grids-layer, SVG) não têm
+  // problema de CORS — continuam sendo capturadas pelo html2canvas, agora
+  // com fundo transparente, e compostas por cima do raster de tiles.
   // ---------------------------------------------------------------------
-  async function inlineMapTilesAsDataUrls(rootEl) {
-    const imgs = Array.from(rootEl.querySelectorAll('.leaflet-tile, .leaflet-image-layer'))
-      .filter(img => img.tagName === 'IMG' && img.src && img.src.startsWith('http'));
 
-    const restores = [];
-    await Promise.all(imgs.map(async (img) => {
-      const originalSrc = img.src;
-      try {
-        const resp = await fetch(originalSrc, { mode: 'cors', credentials: 'omit' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const blob = await resp.blob();
-        const dataUrl = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        restores.push({ img, originalSrc });
-        img.src = dataUrl;
-      } catch (err) {
-        // Uma tile que falhe (offline, bloqueada, CORS negado mesmo no fetch)
-        // não deve travar a exportação inteira — ela simplesmente permanece
-        // como estava e pode sair em branco isoladamente, em vez do mapa
-        // inteiro falhar.
-        console.warn('Não foi possível embutir tile para exportação:', originalSrc, err);
-      }
-    }));
-
-    // Devolve uma função que restaura todos os src originais.
-    return function restoreTiles() {
-      restores.forEach(({ img, originalSrc }) => { img.src = originalSrc; });
-    };
+  // Carrega uma imagem de tile com CORS habilitado. Resolve com a <img> ou
+  // rejeita se não puder ser lida (rede, 404, CORS bloqueado etc.) — cada
+  // falha é tratada individualmente por quem chama, não aqui.
+  function loadTileImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Falha ao carregar tile: ' + url));
+      img.src = url;
+    });
   }
 
-  // ---------------------------------------------------------------------
-  // Por que o mapa saía deslocado/cortado/ampliado na exportação (depois de
-  // já ter corrigido o problema de ficar em branco):
-  // o .map-leaflet-div é propositalmente desenhado a 200% do tamanho do
-  // item e deslocado -50% em x/y (ver CSS), para que sobre mapa de sobra
-  // nos cantos quando o usuário gira o mapa (item.mapRotation). Na tela,
-  // isso funciona porque o .map-item pai tem overflow:hidden, cortando o
-  // excedente na borda da moldura. O html2canvas, porém, não respeita esse
-  // corte para elementos filhos posicionados fora da caixa do pai: ele
-  // desenha o .map-leaflet-div inteiro (200%, deslocado), como se não
-  // houvesse overflow:hidden — daí o mapa aparecer 2x maior e fora de
-  // posição na exportação.
-  //
-  // Uma primeira tentativa recapturava document.body inteiro recortado
-  // pelas coordenadas do item (opções x/y/width/height do html2canvas).
-  // Piorou o resultado: html2canvas clona o documento inteiro internamente
-  // para renderizar, e recortar essa clonagem por coordenadas de tela não
-  // bate de forma confiável com o item real.
-  //
-  // Solução: capturamos o .map-leaflet-div daquele item ISOLADAMENTE como
-  // raiz (não document.body), SEM a rotação CSS aplicada (removida
-  // temporariamente antes da captura — html2canvas tem suporte instável a
-  // transform em elementos-raiz). Como o tamanho do .map-leaflet-div sem
-  // rotação é sempre 200%/-50% da moldura (ver CSS), recortamos
-  // manualmente o quarto central do resultado, que corresponde exatamente
-  // ao que overflow:hidden mostra na tela sem rotação. Se havia rotação,
-  // aplicamos nós mesmos com ctx.rotate() ao desenhar esse recorte no
-  // canvas final — assim controlamos o resultado por inteiro em vez de
-  // depender do html2canvas para transform.
-  // ---------------------------------------------------------------------
+  // Substitui {s}/{x}/{y}/{z} no template de URL do L.TileLayer, incluindo
+  // o round-robin de subdomínio que o próprio Leaflet usa internamente.
+  function buildTileUrl(tileLayer, coords) {
+    const data = Object.assign({}, tileLayer.options, {
+      x: coords.x,
+      y: coords.y,
+      z: coords.z,
+    });
+    if (tileLayer.options.subdomains && tileLayer.options.subdomains.length) {
+      const subs = tileLayer.options.subdomains;
+      const index = Math.abs(coords.x + coords.y) % subs.length;
+      data.s = subs[index];
+    }
+    return L.Util.template(tileLayer._url, data);
+  }
+
+  // Desenha a camada raster (tiles) de um mapa Leaflet diretamente num
+  // canvas do tamanho pedido (outW x outH, já em pixels de saída), usando
+  // a projeção do próprio Leaflet para posicionar cada tile — equivalente
+  // visual ao que aparece na tela, sem depender de captura de DOM.
+  async function drawTileLayerToCanvas(map, ctx, outW, outH, scale) {
+    // Encontra o tile layer ativo (camada base OSM) entre as camadas do mapa.
+    let tileLayer = null;
+    map.eachLayer(l => { if (l instanceof L.TileLayer) tileLayer = l; });
+    if (!tileLayer) return { attempted: 0, failed: 0 }; // sem camada base — nada a desenhar
+
+    const zoom = map.getZoom();
+    const tileSize = tileLayer.getTileSize ? tileLayer.getTileSize().x : 256;
+    // Origem em pixels do canto superior-esquerdo do item, no sistema de
+    // coordenadas de pixel do Leaflet no zoom atual.
+    const nwPoint = map.project(map.getBounds().getNorthWest(), zoom);
+    const originX = nwPoint.x;
+    const originY = nwPoint.y;
+
+    // Intervalo de tiles (x,y) que cobre a área visível, com 1 tile de
+    // margem para não deixar faixas em branco por arredondamento.
+    const tileMin = {
+      x: Math.floor(originX / tileSize) - 1,
+      y: Math.floor(originY / tileSize) - 1,
+    };
+    const sePoint = map.project(map.getBounds().getSouthEast(), zoom);
+    const tileMax = {
+      x: Math.ceil(sePoint.x / tileSize) + 1,
+      y: Math.ceil(sePoint.y / tileSize) + 1,
+    };
+
+    const maxTileIndex = Math.pow(2, Math.round(zoom));
+    let attempted = 0;
+    let failed = 0;
+    const jobs = [];
+    for (let tx = tileMin.x; tx <= tileMax.x; tx++) {
+      for (let ty = tileMin.y; ty <= tileMax.y; ty++) {
+        if (ty < 0 || ty >= maxTileIndex) continue; // fora do mundo (sem wrap em y)
+        const wrappedX = ((tx % maxTileIndex) + maxTileIndex) % maxTileIndex; // wrap em x (mundo cíclico)
+        const coords = { x: wrappedX, y: ty, z: Math.round(zoom) };
+        const url = buildTileUrl(tileLayer, coords);
+        attempted++;
+        jobs.push(
+          loadTileImage(url)
+            .then(img => {
+              const destX = (tx * tileSize - originX) * scale;
+              const destY = (ty * tileSize - originY) * scale;
+              ctx.drawImage(img, destX, destY, tileSize * scale, tileSize * scale);
+            })
+            .catch(err => {
+              failed++;
+              console.warn('Tile não pôde ser desenhada na exportação:', url, err);
+            })
+        );
+      }
+    }
+    await Promise.all(jobs);
+    return { attempted, failed };
+  }
+
+  // Captura apenas os elementos vetoriais do mapa (camadas GeoJSON
+  // desenhadas pelo Leaflet via SVG/Canvas renderer, e a grade
+  // .map-grids-layer) com fundo transparente, para compor por cima do
+  // raster de tiles desenhado manualmente. Nenhum desses elementos tem
+  // problema de CORS (não são <img> de outro domínio), então o
+  // html2canvas funciona neles sem ressalvas.
+  async function captureMapVectorOverlay(mapDiv, outW, outH, scale) {
+    const canvas = await window.html2canvas(mapDiv, {
+      backgroundColor: null,
+      scale,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      // Ignora as <img> de tile aqui — elas já foram desenhadas à parte
+      // pelo drawTileLayerToCanvas; incluí-las de novo só arriscaria
+      // repetir o problema de CORS original nesta camada.
+      ignoreElements: (el) => el.classList && el.classList.contains('leaflet-tile'),
+    });
+    return canvas;
+  }
+
+  // Captura um item de mapa (moldura no layout) para um canvas do tamanho
+  // exato do item (outW x outH em pixels de tela, escalado por `scale`),
+  // já com a rotação de mapa (item.mapRotation) aplicada quando existir.
   async function captureMapItemCanvas(itemEl, item, scale) {
     const mapDiv = itemEl.querySelector('.map-leaflet-div');
     if (!mapDiv) throw new Error('map-leaflet-div não encontrado');
+    const map = item && item.leaflet;
+    if (!map) throw new Error('mapa Leaflet não inicializado para este item');
 
-    const previousTransform = mapDiv.style.transform;
-    mapDiv.style.transform = '';
-    let fullCanvas;
-    try {
-      fullCanvas = await window.html2canvas(mapDiv, {
-        backgroundColor: '#ffffff',
-        scale,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-      });
-    } finally {
-      mapDiv.style.transform = previousTransform;
-    }
-
-    // fullCanvas tem o tamanho do .map-leaflet-div sem rotação, que é 200%
-    // da moldura visível em cada dimensão. A fatia visível (o que
-    // overflow:hidden mostra, sem rotação) é o quarto central: 25%–75%.
     const itemRect = itemEl.getBoundingClientRect();
     const outW = Math.round(itemRect.width * scale);
     const outH = Math.round(itemRect.height * scale);
-    const srcX = Math.round(fullCanvas.width * 0.25);
-    const srcY = Math.round(fullCanvas.height * 0.25);
 
-    const cropped = document.createElement('canvas');
-    cropped.width = outW;
-    cropped.height = outH;
-    const cctx = cropped.getContext('2d');
-    const deg = (item && item.mapRotation) || 0;
-    if (deg) {
-      // Reaplica a rotação nós mesmos: gira em torno do centro do item,
-      // igual ao transform CSS original (transform-origin: center center).
-      cctx.translate(outW / 2, outH / 2);
-      cctx.rotate((deg * Math.PI) / 180);
-      cctx.drawImage(fullCanvas, srcX, srcY, outW, outH, -outW / 2, -outH / 2, outW, outH);
-    } else {
-      cctx.drawImage(fullCanvas, srcX, srcY, outW, outH, 0, 0, outW, outH);
+    // 1) Raster das tiles, desenhado manualmente (sem rotação — a rotação é
+    // aplicada no final, sobre o resultado já composto).
+    const rasterCanvas = document.createElement('canvas');
+    rasterCanvas.width = outW;
+    rasterCanvas.height = outH;
+    const rasterCtx = rasterCanvas.getContext('2d');
+    rasterCtx.fillStyle = '#ffffff';
+    rasterCtx.fillRect(0, 0, outW, outH);
+    const tileResult = await drawTileLayerToCanvas(map, rasterCtx, outW, outH, scale);
+
+    // 2) Camadas vetoriais + grade, capturadas isoladamente (sem a rotação
+    // CSS do mapDiv, pela mesma razão de sempre: html2canvas em elemento
+    // raiz com transform aplicado não é confiável). Como o mapDiv é 200%/
+    // -50% do item (ver CSS), recortamos o quarto central (25%-75%), que
+    // corresponde exatamente à área visível sem rotação.
+    const previousTransform = mapDiv.style.transform;
+    mapDiv.style.transform = '';
+    let vectorCanvas;
+    try {
+      vectorCanvas = await captureMapVectorOverlay(mapDiv, outW, outH, scale);
+    } finally {
+      mapDiv.style.transform = previousTransform;
     }
-    return cropped;
+    const vecSrcX = Math.round(vectorCanvas.width * 0.25);
+    const vecSrcY = Math.round(vectorCanvas.height * 0.25);
+    rasterCtx.drawImage(vectorCanvas, vecSrcX, vecSrcY, outW, outH, 0, 0, outW, outH);
+
+    // 3) Se nenhuma tile carregou (tipicamente file:// bloqueando CORS),
+    // avisa com uma mensagem específica em vez de deixar sair em branco
+    // silenciosamente — mantendo o restante do desenho (vetores/grade).
+    if (tileResult.attempted > 0 && tileResult.failed === tileResult.attempted) {
+      console.warn('Nenhuma tile de mapa pôde ser carregada para exportação (possível bloqueio de CORS ao abrir via file://).');
+    }
+
+    // 4) Aplica a rotação do mapa (item.mapRotation) sobre o resultado já
+    // composto (tiles + vetores + grade juntos), girando em torno do
+    // centro do item — equivalente ao transform CSS usado na tela.
+    const deg = (item && item.mapRotation) || 0;
+    if (!deg) return rasterCanvas;
+
+    const rotated = document.createElement('canvas');
+    rotated.width = outW;
+    rotated.height = outH;
+    const rctx = rotated.getContext('2d');
+    rctx.translate(outW / 2, outH / 2);
+    rctx.rotate((deg * Math.PI) / 180);
+    rctx.drawImage(rasterCanvas, -outW / 2, -outH / 2, outW, outH);
+    return rotated;
   }
 
   // Renderiza a folha (#page) para um canvas, escondendo momentaneamente as
@@ -6194,24 +6272,24 @@
     // pequeno delay para garantir que o navegador aplicou o reflow antes de capturar
     await new Promise(r => setTimeout(r, 30));
 
-    // Embute as tiles de mapa como data URLs para contornar a restrição de
-    // CORS descrita acima (essa é a correção para o mapa sair em branco).
-    const restoreTiles = await inlineMapTilesAsDataUrls(pageEl);
-
     const scale = 2; // exporta em resolução maior que a tela para qualidade de impressão
     let canvas;
+    let anyMapFullyBlank = false;
     try {
+      // A página inteira é capturada normalmente pelo html2canvas, exceto
+      // as tiles de mapa (ignoradas aqui de propósito — ver comentário
+      // grande acima de captureMapItemCanvas): cada item de mapa é
+      // recapturado à parte, com o raster de tiles desenhado manualmente,
+      // e colado por cima da área correspondente neste canvas de página.
       canvas = await window.html2canvas(pageEl, {
         backgroundColor: '#ffffff',
         scale,
         useCORS: true,
         allowTaint: false,
         logging: false,
+        ignoreElements: (el) => el.classList && el.classList.contains('leaflet-tile'),
       });
 
-      // Corrige cada item de mapa individualmente (ver comentário acima):
-      // recaptura só a área do item, do tamanho real, e substitui a região
-      // correspondente no canvas da página.
       const pageRect = pageEl.getBoundingClientRect();
       const mapItemEls = Array.from(pageEl.querySelectorAll('.layout-item.map-item'));
       const ctx = canvas.getContext('2d');
@@ -6229,16 +6307,17 @@
           ctx.drawImage(mapCanvas, destX, destY, itemRect.width * scale, itemRect.height * scale);
         } catch (err) {
           // Se a recaptura de um item específico falhar, mantém o que o
-          // html2canvas da página já desenhou ali em vez de interromper a
-          // exportação inteira.
+          // html2canvas da página já desenhou ali (fundo branco, sem
+          // tiles) em vez de interromper a exportação inteira.
           console.warn('Não foi possível recapturar item de mapa isoladamente:', err);
+          anyMapFullyBlank = true;
         }
       }
     } finally {
-      restoreTiles();
       layoutState.selectedId = previousSelected;
       renderAll();
     }
+    canvas._anyMapFullyBlank = anyMapFullyBlank;
     return canvas;
   }
 
@@ -6255,13 +6334,23 @@
     return (currentLayoutName || 'layout').trim().replace(/[\\/:*?"<>|]+/g, '_') || 'layout';
   }
 
+  // Mensagem de aviso reaproveitada pelos três formatos de exportação
+  // quando pelo menos um item de mapa não conseguiu desenhar suas tiles
+  // (tipicamente por o arquivo estar aberto via file:// em vez de http://,
+  // o que bloqueia o carregamento de tiles de outro domínio por CORS).
+  function exportSuccessMessage(canvas, base) {
+    return canvas._anyMapFullyBlank
+      ? base + ' Atenção: um ou mais mapas podem ter saído sem as tiles de fundo (abra o arquivo por um servidor http:// em vez de clicar duas vezes nele para corrigir).'
+      : base;
+  }
+
   // 7) Exportar como imagem (PNG)
   document.getElementById('tool-export-image').addEventListener('click', async () => {
     toast('Gerando imagem PNG…', 1800);
     try {
       const canvas = await capturePageCanvas();
       downloadDataUrl(canvas.toDataURL('image/png'), safeFileBaseName() + '.png');
-      toast('Imagem PNG exportada.', 2200);
+      toast(exportSuccessMessage(canvas, 'Imagem PNG exportada.'), canvas._anyMapFullyBlank ? 6000 : 2200);
     } catch (err) {
       console.error(err);
       toast('Não foi possível exportar como PNG: ' + err.message, 4000);
@@ -6286,7 +6375,7 @@
       const url = URL.createObjectURL(blob);
       downloadDataUrl(url, safeFileBaseName() + '.svg');
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      toast('SVG exportado.', 2200);
+      toast(exportSuccessMessage(canvas, 'SVG exportado.'), canvas._anyMapFullyBlank ? 6000 : 2200);
     } catch (err) {
       console.error(err);
       toast('Não foi possível exportar como SVG: ' + err.message, 4000);
@@ -6309,7 +6398,7 @@
       });
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageWmm, pageHmm);
       pdf.save(safeFileBaseName() + '.pdf');
-      toast('PDF exportado.', 2200);
+      toast(exportSuccessMessage(canvas, 'PDF exportado.'), canvas._anyMapFullyBlank ? 6000 : 2200);
     } catch (err) {
       console.error(err);
       toast('Não foi possível exportar como PDF: ' + err.message, 4000);
